@@ -2,13 +2,13 @@ import {
   Image,
   StyleSheet,
   TouchableOpacity,
-  ActivityIndicator
+  ActivityIndicator,
+  View,
 } from "react-native";
 
 import { HelloWave } from "@/components/HelloWave";
 import ParallaxScrollView from "@/components/ParallaxScrollView";
 import { ThemedText } from "@/components/ThemedText";
-import { ThemedView } from "@/components/ThemedView";
 import { useAuthContext } from "@/contexts/AuthContext";
 import { useRouter } from "expo-router";
 import { useState, useEffect } from "react";
@@ -32,12 +32,15 @@ export default function HomeScreen() {
     setProfileError(null);
 
     try {
-      const response = await fetch(`${process.env.EXPO_PUBLIC_BASE_URL}/api/method/frappe.auth.get_logged_user`, {
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'Content-Type': 'application/json',
-        },
-      });
+      const response = await fetch(
+        `${process.env.EXPO_PUBLIC_BASE_URL}/api/method/frappe.auth.get_logged_user`,
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
 
       if (!response.ok) {
         throw new Error(`Failed to fetch user profile: ${response.status}`);
@@ -47,23 +50,30 @@ export default function HomeScreen() {
 
       if (data.message) {
         // Now fetch the user details
-        const userResponse = await fetch(`${process.env.EXPO_PUBLIC_BASE_URL}/api/resource/User/${data.message}`, {
-          headers: {
-            'Authorization': `Bearer ${accessToken}`,
-            'Content-Type': 'application/json',
-          },
-        });
+        const userResponse = await fetch(
+          `${process.env.EXPO_PUBLIC_BASE_URL}/api/resource/User/${data.message}`,
+          {
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+              "Content-Type": "application/json",
+            },
+          }
+        );
 
         if (!userResponse.ok) {
-          throw new Error(`Failed to fetch user details: ${userResponse.status}`);
+          throw new Error(
+            `Failed to fetch user details: ${userResponse.status}`
+          );
         }
 
         const userData = await userResponse.json();
-        setUserName(userData.data.full_name || userData.data.first_name || data.message);
+        setUserName(
+          userData.data.full_name || userData.data.first_name || data.message
+        );
       }
     } catch (error) {
-      console.error('Error fetching user profile:', error);
-      setProfileError('Failed to load user profile');
+      console.error("Error fetching user profile:", error);
+      setProfileError("Failed to load user profile");
     } finally {
       setIsLoadingProfile(false);
     }
@@ -95,18 +105,18 @@ export default function HomeScreen() {
         />
       }
     >
-      <ThemedView style={styles.titleContainer}>
+      <View style={styles.titleContainer}>
         <ThemedText type="title">
-          Welcome{userName ? `, ${userName}` : ''}!
+          Welcome{userName ? `, ${userName}` : ""}!
         </ThemedText>
         <HelloWave />
-      </ThemedView>
+      </View>
 
       {/* Authentication Data Section */}
-      <ThemedView style={styles.authContainer}>
+      <View style={styles.authContainer}>
         <ThemedText type="subtitle">Authentication Status</ThemedText>
-        <ThemedView style={styles.authDataContainer}>
-          <ThemedView style={styles.authDataRow}>
+        <View style={styles.authDataContainer}>
+          <View style={styles.authDataRow}>
             <ThemedText type="defaultSemiBold">Status:</ThemedText>
             <ThemedText
               style={[
@@ -116,16 +126,16 @@ export default function HomeScreen() {
             >
               {isAuthenticated ? "Authenticated" : "Not Authenticated"}
             </ThemedText>
-          </ThemedView>
+          </View>
 
-          <ThemedView style={styles.authDataRow}>
+          <View style={styles.authDataRow}>
             <ThemedText type="defaultSemiBold">Access Token:</ThemedText>
             <ThemedText style={styles.tokenText}>
               {truncateToken(accessToken)}
             </ThemedText>
-          </ThemedView>
+          </View>
 
-          <ThemedView style={styles.authDataRow}>
+          <View style={styles.authDataRow}>
             <ThemedText type="defaultSemiBold">User Profile:</ThemedText>
             {isLoadingProfile ? (
               <ActivityIndicator size="small" color="#4CAF50" />
@@ -136,15 +146,15 @@ export default function HomeScreen() {
             ) : (
               <ThemedText>Not loaded</ThemedText>
             )}
-          </ThemedView>
-        </ThemedView>
-      </ThemedView>
+          </View>
+        </View>
+      </View>
 
-      <ThemedView style={styles.logoutContainer}>
+      <View style={styles.logoutContainer}>
         <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
           <ThemedText style={styles.logoutButtonText}>Logout</ThemedText>
         </TouchableOpacity>
-      </ThemedView>
+      </View>
     </ParallaxScrollView>
   );
 }

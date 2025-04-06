@@ -3,7 +3,6 @@ import { Link, Stack, usePathname, useSegments, useLocalSearchParams } from 'exp
 import { StyleSheet, View, ScrollView } from 'react-native';
 
 import { ThemedText } from '@/components/ThemedText';
-import { ThemedView } from '@/components/ThemedView';
 
 export default function NotFoundScreen() {
   const pathname = usePathname();
@@ -14,11 +13,11 @@ export default function NotFoundScreen() {
     <>
       <Stack.Screen options={{ title: 'Oops!' }} />
       <ScrollView contentContainerStyle={styles.scrollContainer}>
-        <ThemedView style={styles.container}>
+        <View style={styles.container}>
           <ThemedText type="title" style={styles.title}>Page Not Found</ThemedText>
           <ThemedText style={styles.subtitle}>The screen you're looking for doesn't exist.</ThemedText>
 
-          <ThemedView style={styles.routeInfoContainer}>
+          <View style={styles.routeInfoContainer}>
             <ThemedText type="subtitle" style={styles.sectionTitle}>Route Information</ThemedText>
 
             <View style={styles.infoRow}>
@@ -42,12 +41,12 @@ export default function NotFoundScreen() {
                 ))}
               </>
             )}
-          </ThemedView>
+          </View>
 
           <Link href="/" style={styles.link}>
             <ThemedText type="link">Return to Home Screen</ThemedText>
           </Link>
-        </ThemedView>
+        </View>
       </ScrollView>
     </>
   );
