@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "expo-feet_on_street",
-    "slug": "expo-feet_on_street",
+    "name": "Feet On Street",
+    "slug": "feet-on-street",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "myapp",
+    "scheme": "feet-on-street",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
