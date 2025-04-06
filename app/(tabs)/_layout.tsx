@@ -1,7 +1,13 @@
 import { Ionicons } from "@expo/vector-icons";
-import { Tabs } from "expo-router";
+import { router, Tabs } from "expo-router";
 import React, { useEffect, useState } from "react";
-import { Platform, StyleSheet, TouchableOpacity, View, ActivityIndicator } from "react-native";
+import {
+  ActivityIndicator,
+  Platform,
+  StyleSheet,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { HapticTab } from "@/components/HapticTab";
@@ -84,14 +90,25 @@ export default function TabLayout() {
   const renderAvatar = () => {
     if (isLoadingProfile) {
       return (
-        <View style={[styles.avatarContainer, styles.avatarSkeleton, { backgroundColor: theme.colors.surfaceSecondary }]}>
+        <View
+          style={[
+            styles.avatarContainer,
+            styles.avatarSkeleton,
+            { backgroundColor: theme.colors.surfaceSecondary },
+          ]}
+        >
           <ActivityIndicator size="small" color={theme.colors.buttonPrimary} />
         </View>
       );
     }
 
     return (
-      <View style={[styles.avatarContainer, { backgroundColor: theme.colors.buttonPrimary }]}>
+      <View
+        style={[
+          styles.avatarContainer,
+          { backgroundColor: theme.colors.buttonPrimary },
+        ]}
+      >
         <ThemedText style={styles.avatarText}>{getAvatarText()}</ThemedText>
       </View>
     );
@@ -129,7 +146,10 @@ export default function TabLayout() {
                   color={theme.colors.textPrimary}
                 />
               </TouchableOpacity>
-              <TouchableOpacity style={styles.iconButton}>
+              <TouchableOpacity
+                style={styles.iconButton}
+                onPress={() => router.push("/user")}
+              >
                 {renderAvatar()}
               </TouchableOpacity>
             </View>
