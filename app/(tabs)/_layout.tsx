@@ -15,7 +15,6 @@ export default function TabLayout() {
       screenOptions={{
         tabBarActiveTintColor: theme.colors.buttonPrimary,
         tabBarInactiveTintColor: theme.colors.textTertiary,
-        headerShown: false,
         tabBarButton: HapticTab,
         tabBarBackground: TabBarBackground,
         tabBarStyle: Platform.select({
@@ -34,13 +33,6 @@ export default function TabLayout() {
         options={{
           title: 'Home',
           tabBarIcon: ({ color } : { color : string}) => <IconSymbol size={28} name="house.fill" color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="explore"
-        options={{
-          title: 'Explore',
-          tabBarIcon: ({ color } : { color : string}) => <IconSymbol size={28} name="paperplane.fill" color={color} />,
         }}
       />
     </Tabs>
