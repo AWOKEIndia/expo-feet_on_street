@@ -12,7 +12,6 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { HapticTab } from "@/components/HapticTab";
 import { ThemedText } from "@/components/ThemedText";
-import { IconSymbol } from "@/components/ui/IconSymbol";
 import TabBarBackground from "@/components/ui/TabBarBackground";
 import { useAuthContext } from "@/contexts/AuthContext";
 import { useTheme } from "@/contexts/ThemeContext";
@@ -162,7 +161,43 @@ export default function TabLayout() {
         options={{
           title: "Home",
           tabBarIcon: ({ color }: { color: string }) => (
-            <IconSymbol size={28} name="house.fill" color={color} />
+            <Ionicons size={24} name="home-outline" color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="attendance"
+        options={{
+          title: "Attendance",
+          tabBarIcon: ({ color }: { color: string }) => (
+            <Ionicons name="checkmark-done-circle-outline" size={24} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="leaves"
+        options={{
+          title: "Leaves",
+          tabBarIcon: ({ color }: { color: string }) => (
+            <Ionicons name="calendar-outline" size={24} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="report"
+        options={{
+          title: "Session Report",
+          tabBarIcon: ({ color }: { color: string }) => (
+            <Ionicons name="stats-chart-outline" size={24} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="expense"
+        options={{
+          title: "Expense",
+          tabBarIcon: ({ color }: { color: string }) => (
+            <Ionicons name="newspaper-outline" size={24} color={color} />
           ),
         }}
       />
