@@ -9,8 +9,8 @@ import {
 } from "react-native";
 import * as Location from "expo-location";
 import moment from "moment";
-
-const EMPLOYEE_NAME = "John Doe";
+import { useAuthContext } from "@/contexts/AuthContext";
+import { useTheme } from "@/contexts/ThemeContext";
 
 const CheckInCheckOut = () => {
   interface Log {
@@ -23,24 +23,81 @@ const CheckInCheckOut = () => {
     useState<Location.LocationObjectCoords | null>(null);
   const [status, setStatus] = useState("");
   const [loading, setLoading] = useState(false);
-  const [isLoadingProfile, setIsLoadingProfile] = useState(false);
-  const [profileError, setProfileError] = useState(null);
-  const [userName, setUserName] = useState(EMPLOYEE_NAME);
+  const [isLoadingProfile, setIsLoadingProfile] = useState<boolean>(false);
+  const [profileError, setProfileError] = useState<string | null>(null);
+  const [userName, setUserName] = useState<string>("");
+  const { accessToken, isAuthenticated } = useAuthContext();
+  const { theme } = useTheme();
 
   // Determine if the user is checked in based on last log
   const isCheckedIn = lastLog?.log_type === "IN";
 
-  const theme = {
-    card: "#ffffff",
-    text: "#000000",
-    textSecondary: "#6b7280",
-    primary: "#3b82f6",
-  };
-
-  const fetchLastLog = async () => {
+  const fetchUserProfile = async () => {
+    setIsLoadingProfile(true);
+    setProfileError(null);
     try {
       const response = await fetch(
-        `${process.env.EXPO_PUBLIC_BASE_URL}/api/api/resource/User/${data.message}`
+        `${process.env.EXPO_PUBLIC_BASE_URL}/api/method/frappe.auth.get_logged_user`,
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch user profile: ${response.status}`);
+      }
+
+      const data = await response.json();
+
+      if (data.message) {
+        // Now fetch the user details
+        const userResponse = await fetch(
+          `${process.env.EXPO_PUBLIC_BASE_URL}/api/resource/User/${data.message}`,
+          {
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+              "Content-Type": "application/json",
+            },
+          }
+        );
+
+        if (!userResponse.ok) {
+          throw new Error(
+            `Failed to fetch user details: ${userResponse.status}`
+          );
+        }
+
+        const userData = await userResponse.json();
+        setUserName(
+          userData.data.full_name || userData.data.first_name || data.message
+        );
+
+        // Store the user ID for fetchLastLog
+        return data.message;
+      }
+    } catch (error) {
+      console.error("Error fetching user profile:", error);
+      setProfileError("Failed to load user profile");
+    } finally {
+      setIsLoadingProfile(false);
+    }
+  };
+
+  const fetchLastLog = async (userId?: string) => {
+    try {
+      // If userId is not provided, try to get it from fetchUserProfile
+      const userIdentifier = userId || await fetchUserProfile();
+
+      if (!userIdentifier) {
+        console.error("No user identifier available for fetching last log");
+        return;
+      }
+
+      const response = await fetch(
+        `${process.env.EXPO_PUBLIC_BASE_URL}/api/api/resource/User/${userIdentifier}`
       );
       const responseData = await response.json();
       setLastLog(responseData[0]);
@@ -97,23 +154,29 @@ const CheckInCheckOut = () => {
     fetchLastLog();
   }, []);
 
+  useEffect(() => {
+    if (isAuthenticated && accessToken) {
+      fetchUserProfile();
+    }
+  }, [isAuthenticated, accessToken]);
+
   const nextAction = isCheckedIn ? "Check Out" : "Check In";
 
   return (
-    <View style={[styles.welcomeCard, { backgroundColor: theme.card }]}>
+    <View style={[styles.welcomeCard, { backgroundColor: theme.colors.surfacePrimary }]}>
       <View style={styles.welcomeContent}>
         {isLoadingProfile ? (
-          <ActivityIndicator size="small" color={theme.primary} />
+          <ActivityIndicator size="small" color={theme.colors.buttonPrimary} />
         ) : profileError ? (
-          <Text style={[styles.errorText, { color: "#FF3B30" }]}>
+          <Text style={[styles.errorText, { color: theme.statusColors.error }]}>
             {profileError}
           </Text>
         ) : (
-          <Text style={[styles.welcomeText, { color: theme.text }]}>
+          <Text style={[styles.welcomeText, { color: theme.colors.textPrimary }]}>
             Hey, {userName || "User"} <Text style={styles.waveEmoji}>👋</Text>
           </Text>
         )}
-        <Text style={[styles.lastText, { color: theme.textSecondary }]}>
+        <Text style={[styles.lastText, { color: theme.colors.textSecondary }]}>
           {isCheckedIn
             ? `Last check-in was at ${moment(lastLog?.time).format(
                 "hh:mm a"
@@ -129,7 +192,7 @@ const CheckInCheckOut = () => {
       </View>
 
       {location && (
-        <Text style={[styles.locationText, { color: theme.textSecondary }]}>
+        <Text style={[styles.locationText, { color: theme.colors.textSecondary }]}>
           Lat: {location.latitude.toFixed(5)}, Lng:{" "}
           {location.longitude.toFixed(5)}
         </Text>
@@ -138,7 +201,7 @@ const CheckInCheckOut = () => {
       <TouchableOpacity
         onPress={handleCheckInOut}
         disabled={loading}
-        style={styles.button}
+        style={[styles.button, { backgroundColor: theme.colors.buttonPrimary }]}
       >
         {loading ? (
           <ActivityIndicator color="#fff" />
@@ -147,12 +210,12 @@ const CheckInCheckOut = () => {
         )}
       </TouchableOpacity>
 
-      {status !== "" && <Text style={styles.statusText}>{status}</Text>}
+      {status !== "" && <Text style={[styles.statusText, { color: theme.colors.textTertiary }]}>{status}</Text>}
 
       <TouchableOpacity
         onPress={() => Linking.openURL(`${process.env.EXPO_PUBLIC_BASE_URL}/employee-checkin-list`)}
       >
-        <Text style={styles.linkText}>View Check-In List</Text>
+        <Text style={[styles.linkText, { color: theme.colors.buttonPrimary }]}>View Check-In List</Text>
       </TouchableOpacity>
     </View>
   );
@@ -191,7 +254,6 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   button: {
-    backgroundColor: "#3b82f6",
     paddingVertical: 12,
     paddingHorizontal: 20,
     borderRadius: 12,
@@ -208,12 +270,10 @@ const styles = StyleSheet.create({
   statusText: {
     marginTop: 12,
     fontSize: 14,
-    color: "#6b7280",
   },
   linkText: {
     marginTop: 16,
     fontSize: 14,
-    color: "#3b82f6",
     textDecorationLine: "underline",
   },
 });
