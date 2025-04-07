@@ -8,10 +8,8 @@ import {
   StyleSheet,
 } from "react-native";
 import * as Location from "expo-location";
-import axios from "axios";
 import moment from "moment";
 
-const API_BASE_URL = "http://172.25.13.25:8000";
 const EMPLOYEE_NAME = "John Doe";
 
 const CheckInCheckOut = () => {
@@ -41,10 +39,11 @@ const CheckInCheckOut = () => {
 
   const fetchLastLog = async () => {
     try {
-      const response = await axios.get(
-        `${API_BASE_URL}/api/checkins?employee=${userName}`
+      const response = await fetch(
+        `${process.env.EXPO_PUBLIC_BASE_URL}/api/api/resource/User/${data.message}`
       );
-      setLastLog(response.data[0]);
+      const responseData = await response.json();
+      setLastLog(responseData[0]);
     } catch (error) {
       console.error("Failed to fetch last log", error);
     }
@@ -72,7 +71,18 @@ const CheckInCheckOut = () => {
         longitude: loc.coords.longitude,
       };
 
-      await axios.post(`${API_BASE_URL}/api/checkins`, payload);
+      const response = await fetch(`${process.env.EXPO_PUBLIC_BASE_URL}/api/checkins`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        throw new Error('Network response was not ok');
+      }
+
       setStatus(`${logType === "IN" ? "Check-in" : "Check-out"} successful!`);
       fetchLastLog();
     } catch (error) {
@@ -140,7 +150,7 @@ const CheckInCheckOut = () => {
       {status !== "" && <Text style={styles.statusText}>{status}</Text>}
 
       <TouchableOpacity
-        onPress={() => Linking.openURL(`${API_BASE_URL}/employee-checkin-list`)}
+        onPress={() => Linking.openURL(`${process.env.EXPO_PUBLIC_BASE_URL}/employee-checkin-list`)}
       >
         <Text style={styles.linkText}>View Check-In List</Text>
       </TouchableOpacity>
