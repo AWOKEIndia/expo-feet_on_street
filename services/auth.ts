@@ -7,7 +7,7 @@ const FRAPPE_OAUTH_CONFIG = {
   redirectUri: Linking.createURL('oauth/callback'),
   authorizationEndpoint: `${process.env.EXPO_PUBLIC_BASE_URL}/api/method/frappe.integrations.oauth2.authorize`,
   tokenEndpoint: `${process.env.EXPO_PUBLIC_BASE_URL}/api/method/frappe.integrations.oauth2.get_token`,
-  logoutEndpoint: `${process.env.EXPO_PUBLIC_BASE_URL}/api/method/frappe.auth.logout`,
+  logoutEndpoint: `${process.env.EXPO_PUBLIC_BASE_URL}/api/method/frappe.integrations.oauth2.revoke_token`,
 };
 
 // Initialize WebBrowser for OAuth
@@ -139,11 +139,14 @@ export const authService = {
   async logout(accessToken: string): Promise<void> {
     try {
       const response = await fetch(FRAPPE_OAUTH_CONFIG.logoutEndpoint, {
-        method: 'GET',
+        method: 'POST',
         headers: {
           'Authorization': `Bearer ${accessToken}`,
           'Content-Type': 'application/json',
         },
+        body: JSON.stringify({
+          token: accessToken,
+        }),
       });
 
       if (!response.ok) {
