@@ -12,13 +12,13 @@ import {
 import Icon from "react-native-vector-icons/MaterialIcons";
 
 export default function HomeScreen() {
-  const { theme } = useTheme();
+  const { theme, isDark } = useTheme();
 
   return (
     <SafeAreaView
       style={[styles.container, { backgroundColor: theme.colors.background }]}
     >
-      <StatusBar barStyle="dark-content" />
+      <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
       <ScrollView
         style={styles.contentContainer}
         showsVerticalScrollIndicator={false}
