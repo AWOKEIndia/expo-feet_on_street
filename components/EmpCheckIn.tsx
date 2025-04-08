@@ -26,11 +26,41 @@ const CheckInCheckOut = () => {
   const [isLoadingProfile, setIsLoadingProfile] = useState<boolean>(false);
   const [profileError, setProfileError] = useState<string | null>(null);
   const [userName, setUserName] = useState<string>("");
+  const [employee_field_value, setEmployeeFieldValue] = useState<string>("");
   const { accessToken, isAuthenticated } = useAuthContext();
   const { theme } = useTheme();
 
-  // Determine if the user is checked in based on last log
   const isCheckedIn = lastLog?.log_type === "IN";
+
+  const fetchLastLog = async (empId?: string) => {
+    try {
+      const employeeId = empId || employee_field_value;
+
+      if (!employeeId) {
+        console.error("Employee ID is missing while fetching last log.");
+        return;
+      }
+
+      const response = await fetch(
+        `${process.env.EXPO_PUBLIC_BASE_URL}/api/resource/Employee Checkin?fields=["log_type","time"]&filters=[["employee","=","${employeeId}"]]&order_by=creation desc&limit=1`,
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch last log: ${response.status}`);
+      }
+
+      const data = await response.json();
+      setLastLog(data.data[0] || null);
+    } catch (error) {
+      console.error("Failed to fetch last log", error);
+    }
+  };
 
   const fetchUserProfile = async () => {
     setIsLoadingProfile(true);
@@ -51,58 +81,59 @@ const CheckInCheckOut = () => {
       }
 
       const data = await response.json();
+      const userId = data.message;
 
-      if (data.message) {
-        // Now fetch the user details
-        const userResponse = await fetch(
-          `${process.env.EXPO_PUBLIC_BASE_URL}/api/resource/User/${data.message}`,
-          {
-            headers: {
-              Authorization: `Bearer ${accessToken}`,
-              "Content-Type": "application/json",
-            },
-          }
-        );
-
-        if (!userResponse.ok) {
-          throw new Error(
-            `Failed to fetch user details: ${userResponse.status}`
-          );
+      const userResponse = await fetch(
+        `${process.env.EXPO_PUBLIC_BASE_URL}/api/resource/User/${userId}`,
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            "Content-Type": "application/json",
+          },
         }
+      );
 
-        const userData = await userResponse.json();
-        setUserName(
-          userData.data.full_name || userData.data.first_name || data.message
-        );
-
-        // Store the user ID for fetchLastLog
-        return data.message;
+      if (!userResponse.ok) {
+        throw new Error(`Failed to fetch user details: ${userResponse.status}`);
       }
+
+      const userData = await userResponse.json();
+      setUserName(
+        userData.data.full_name || userData.data.first_name || userId
+      );
+
+      const employeeResponse = await fetch(
+        `${process.env.EXPO_PUBLIC_BASE_URL}/api/resource/Employee?filters=[["user_id","=","${userId}"]]`,
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      if (!employeeResponse.ok) {
+        throw new Error(
+          `Failed to fetch employee data: ${employeeResponse.status}`
+        );
+      }
+
+      const employeeData = await employeeResponse.json();
+      const employeeId = employeeData.data?.[0]?.name;
+
+      if (employeeId) {
+        setEmployeeFieldValue(employeeId);
+        fetchLastLog(employeeId); // ✅ Trigger after setting employee ID
+      } else {
+        console.warn("No linked employee found for this user.");
+      }
+
+      return userId;
     } catch (error) {
       console.error("Error fetching user profile:", error);
       setProfileError("Failed to load user profile");
     } finally {
       setIsLoadingProfile(false);
-    }
-  };
-
-  const fetchLastLog = async (userId?: string) => {
-    try {
-      // If userId is not provided, try to get it from fetchUserProfile
-      const userIdentifier = userId || await fetchUserProfile();
-
-      if (!userIdentifier) {
-        console.error("No user identifier available for fetching last log");
-        return;
-      }
-
-      const response = await fetch(
-        `${process.env.EXPO_PUBLIC_BASE_URL}/api/api/resource/User/${userIdentifier}`
-      );
-      const responseData = await response.json();
-      setLastLog(responseData[0]);
-    } catch (error) {
-      console.error("Failed to fetch last log", error);
     }
   };
 
@@ -121,38 +152,42 @@ const CheckInCheckOut = () => {
       setLocation(loc.coords);
 
       const payload = {
-        employee: userName,
+        employee_field_value: employee_field_value,
+        employee_fieldname: "employee",
+        timestamp: moment().format("YYYY-MM-DD HH:mm:ss"),
+        device_id: "feet-on-street",
         log_type: logType,
-        time: moment().format("YYYY-MM-DD HH:mm:ss"),
         latitude: loc.coords.latitude,
         longitude: loc.coords.longitude,
+        skip_auto_attendance: 0,
       };
 
-      const response = await fetch(`${process.env.EXPO_PUBLIC_BASE_URL}/api/checkins`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload),
-      });
+      const response = await fetch(
+        `${process.env.EXPO_PUBLIC_BASE_URL}/api/method/hrms.hr.doctype.employee_checkin.employee_checkin.add_log_based_on_employee_field`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${accessToken}`,
+          },
+          body: JSON.stringify(payload),
+        }
+      );
 
       if (!response.ok) {
-        throw new Error('Network response was not ok');
+        const errorData = await response.text();
+        throw new Error(`API error (${response.status}): ${errorData}`);
       }
 
       setStatus(`${logType === "IN" ? "Check-in" : "Check-out"} successful!`);
       fetchLastLog();
-    } catch (error) {
+    } catch (error: any) {
       console.error("Check-in/out failed", error);
-      setStatus("Failed to log time.");
+      setStatus(`Failed to log time: ${error.message}`);
     } finally {
       setLoading(false);
     }
   };
-
-  useEffect(() => {
-    fetchLastLog();
-  }, []);
 
   useEffect(() => {
     if (isAuthenticated && accessToken) {
@@ -163,7 +198,12 @@ const CheckInCheckOut = () => {
   const nextAction = isCheckedIn ? "Check Out" : "Check In";
 
   return (
-    <View style={[styles.welcomeCard, { backgroundColor: theme.colors.surfacePrimary }]}>
+    <View
+      style={[
+        styles.welcomeCard,
+        { backgroundColor: theme.colors.surfacePrimary },
+      ]}
+    >
       <View style={styles.welcomeContent}>
         {isLoadingProfile ? (
           <ActivityIndicator size="small" color={theme.colors.buttonPrimary} />
@@ -172,27 +212,33 @@ const CheckInCheckOut = () => {
             {profileError}
           </Text>
         ) : (
-          <Text style={[styles.welcomeText, { color: theme.colors.textPrimary }]}>
+          <Text
+            style={[styles.welcomeText, { color: theme.colors.textPrimary }]}
+          >
             Hey, {userName || "User"} <Text style={styles.waveEmoji}>👋</Text>
           </Text>
         )}
         <Text style={[styles.lastText, { color: theme.colors.textSecondary }]}>
-          {isCheckedIn
-            ? `Last check-in was at ${moment(lastLog?.time).format(
-                "hh:mm a"
-              )} today`
-            : `Last check-out was at ${moment(lastLog?.time).format(
-                "hh:mm a"
-              )} ${
-                moment(lastLog?.time).isSame(moment(), "day")
-                  ? "today"
-                  : "yesterday"
-              }`}
+          {lastLog?.time
+            ? isCheckedIn
+              ? `Last check-in was at ${moment(lastLog?.time).format(
+                  "hh:mm a"
+                )} today`
+              : `Last check-out was at ${moment(lastLog?.time).format(
+                  "hh:mm a"
+                )} ${
+                  moment(lastLog?.time).isSame(moment(), "day")
+                    ? "today"
+                    : "yesterday"
+                }`
+            : "No check-in/out history found."}
         </Text>
       </View>
 
       {location && (
-        <Text style={[styles.locationText, { color: theme.colors.textSecondary }]}>
+        <Text
+          style={[styles.locationText, { color: theme.colors.textSecondary }]}
+        >
           Lat: {location.latitude.toFixed(5)}, Lng:{" "}
           {location.longitude.toFixed(5)}
         </Text>
@@ -210,12 +256,22 @@ const CheckInCheckOut = () => {
         )}
       </TouchableOpacity>
 
-      {status !== "" && <Text style={[styles.statusText, { color: theme.colors.textTertiary }]}>{status}</Text>}
+      {status !== "" && (
+        <Text style={[styles.statusText, { color: theme.colors.textTertiary }]}>
+          {status}
+        </Text>
+      )}
 
       <TouchableOpacity
-        onPress={() => Linking.openURL(`${process.env.EXPO_PUBLIC_BASE_URL}/employee-checkin-list`)}
+        onPress={() =>
+          Linking.openURL(
+            `${process.env.EXPO_PUBLIC_BASE_URL}/employee-checkin-list`
+          )
+        }
       >
-        <Text style={[styles.linkText, { color: theme.colors.buttonPrimary }]}>View Check-In List</Text>
+        <Text style={[styles.linkText, { color: theme.colors.buttonPrimary }]}>
+          View Check-In List
+        </Text>
       </TouchableOpacity>
     </View>
   );
