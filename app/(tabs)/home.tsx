@@ -1,5 +1,6 @@
 import EmpCheckIn from "@/components/EmpCheckIn";
 import { useTheme } from "@/contexts/ThemeContext";
+import { Ionicons } from "@expo/vector-icons";
 import {
   SafeAreaView,
   ScrollView,
@@ -13,6 +14,23 @@ import Icon from "react-native-vector-icons/MaterialIcons";
 
 export default function HomeScreen() {
   const { theme, isDark } = useTheme();
+
+  // @ts-expect-error
+  const QuickLinkItem = ({ icon, title, onPress }) => (
+    <TouchableOpacity
+      style={[styles.quickLinkItem, { borderColor: theme.colors.border }]}
+      onPress={onPress}
+      activeOpacity={0.7}
+    >
+      <View style={styles.quickLinkContent}>
+        <View style={styles.iconContainer}>{icon}</View>
+        <Text style={[styles.quickLinkText, { color: theme.colors.textPrimary }]}>{title}</Text>
+      </View>
+      <View style={styles.chevronContainer}>
+        <Ionicons name="chevron-forward-outline" size={18} color={theme.colors.textSecondary} />
+      </View>
+    </TouchableOpacity>
+  );
 
   return (
     <SafeAreaView
@@ -34,7 +52,10 @@ export default function HomeScreen() {
             ]}
           >
             <Text
-              style={[styles.sessionReportText, { color: theme.colors.textInverted }]}
+              style={[
+                styles.sessionReportText,
+                { color: theme.colors.textInverted },
+              ]}
             >
               Session Report
             </Text>
@@ -49,8 +70,17 @@ export default function HomeScreen() {
               },
             ]}
           >
-            <Icon name="camera-alt" size={20} color={theme.colors.textPrimary} />
-            <Text style={[styles.cameraButtonText, { color: theme.colors.textPrimary }]}>
+            <Icon
+              name="camera-alt"
+              size={20}
+              color={theme.colors.textPrimary}
+            />
+            <Text
+              style={[
+                styles.cameraButtonText,
+                { color: theme.colors.textPrimary },
+              ]}
+            >
               Camera
             </Text>
           </TouchableOpacity>
@@ -66,10 +96,63 @@ export default function HomeScreen() {
             },
           ]}
         >
-          <Text style={[styles.outcomeReportText, { color: theme.colors.textPrimary }]}>
+          <Text
+            style={[
+              styles.outcomeReportText,
+              { color: theme.colors.textPrimary },
+            ]}
+          >
             Create Outcome Report
           </Text>
         </TouchableOpacity>
+
+        <View style={[styles.card, { backgroundColor: theme.colors.surfacePrimary, borderColor: theme.colors.border }]}>
+          <Text style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}>Quick Links</Text>
+          <QuickLinkItem
+            icon={
+              <Ionicons
+                name="document-text-outline"
+                size={20}
+                color={theme.colors.textSecondary}
+              />
+            }
+            title="Request Attendance"
+            onPress={() => {}}
+          />
+          <QuickLinkItem
+            icon={<Ionicons name="time-outline" size={20} color={theme.colors.textSecondary} />}
+            title="Request a Shift"
+            onPress={() => {}}
+          />
+          <QuickLinkItem
+            icon={
+              <Ionicons name="calendar-outline" size={20} color={theme.colors.textSecondary} />
+            }
+            title="Request Leave"
+            onPress={() => {}}
+          />
+          <QuickLinkItem
+            icon={<Ionicons name="cash-outline" size={20} color={theme.colors.textSecondary} />}
+            title="Claim an Expense"
+            onPress={() => {}}
+          />
+          <QuickLinkItem
+            icon={<Ionicons name="cash-outline" size={20} color={theme.colors.textSecondary} />}
+            title="Request an Advance"
+            onPress={() => {}}
+          />
+          <QuickLinkItem
+            icon={
+              <Ionicons
+                name="document-text-outline"
+                size={20}
+                color={theme.colors.textSecondary}
+              />
+            }
+            title="View Salary Slips"
+            onPress={() => {}}
+          />
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -214,7 +297,6 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "600",
     marginBottom: 12,
-    color: "#333333",
   },
   subSectionTitle: {
     fontSize: 16,
@@ -413,5 +495,45 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 4,
     fontWeight: "500",
+  },
+  quickLinkItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 12,
+    borderBottomWidth: 0.2,
+  },
+  quickLinkContent: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  quickLinkText: {
+    fontSize: 16,
+    marginLeft: 16,
+    fontWeight: "500",
+  },
+  iconContainer: {
+    width: 32,
+    height: 32,
+    borderRadius: 12,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  chevronContainer: {
+    width: 28,
+    height: 28,
+    borderRadius: 16,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  card: {
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 28,
+    borderWidth: 1,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
   },
 });
