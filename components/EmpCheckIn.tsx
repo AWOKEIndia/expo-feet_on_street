@@ -11,15 +11,15 @@ import {
   ScrollView,
   SafeAreaView,
 } from "react-native";
+import MapView, { Marker } from "react-native-maps";
+import * as Linking from "expo-linking";
 import * as Location from "expo-location";
 import moment from "moment";
 import { Ionicons } from "@expo/vector-icons";
-import { useNavigation } from "@react-navigation/native";
 import { useAuthContext } from "@/contexts/AuthContext";
 import { useTheme } from "@/contexts/ThemeContext";
 
 const EmployeeCheckInCheckOut = () => {
-  // Types
   interface Log {
     name?: string;
     log_type: string;
@@ -37,7 +37,8 @@ const EmployeeCheckInCheckOut = () => {
 
   // Check-in/out state
   const [lastLog, setLastLog] = useState<Log | null>(null);
-  const [location, setLocation] = useState<Location.LocationObjectCoords | null>(null);
+  const [location, setLocation] =
+    useState<Location.LocationObjectCoords | null>(null);
   const [status, setStatus] = useState("");
   const [loading, setLoading] = useState(false);
   const [isLoadingProfile, setIsLoadingProfile] = useState<boolean>(false);
@@ -56,7 +57,6 @@ const EmployeeCheckInCheckOut = () => {
 
   const { accessToken, isAuthenticated } = useAuthContext();
   const { theme } = useTheme();
-  const navigation = useNavigation();
 
   const isCheckedIn = lastLog?.log_type === "IN";
 
@@ -364,9 +364,23 @@ const EmployeeCheckInCheckOut = () => {
 
   const nextAction = isCheckedIn ? "Check Out" : "Check In";
 
+  const handleOpenInMaps = () => {
+    if (!selectedLog?.latitude || !selectedLog?.longitude) return;
+
+    const url = `https://www.google.com/maps/search/?api=1&query=${selectedLog.latitude},${selectedLog.longitude}`;
+    Linking.openURL(url).catch((err) =>
+      console.error("Failed to open maps:", err)
+    );
+  };
+
   return (
     <SafeAreaView>
-      <View style={[styles.welcomeCard, { backgroundColor: theme.colors.surfacePrimary }]}>
+      <View
+        style={[
+          styles.welcomeCard,
+          { backgroundColor: theme.colors.surfacePrimary },
+        ]}
+      >
         <View style={styles.welcomeContent}>
           {isLoadingProfile ? (
             <ActivityIndicator
@@ -406,9 +420,7 @@ const EmployeeCheckInCheckOut = () => {
               {" "}
               ·{" "}
             </Text>
-            <TouchableOpacity
-              onPress={() => setHistoryModalVisible(true)}
-            >
+            <TouchableOpacity onPress={() => setHistoryModalVisible(true)}>
               <Text
                 style={[styles.linkText, { color: theme.colors.buttonPrimary }]}
               >
@@ -439,8 +451,19 @@ const EmployeeCheckInCheckOut = () => {
             <ActivityIndicator color="#fff" />
           ) : (
             <View style={styles.buttonContent}>
-              <Text style={[styles.buttonText, { color: theme.colors.textInverted }]}>{nextAction}</Text>
-              <Ionicons name={isCheckedIn ? "log-out-outline" : "log-in-outline"} size={18} color={theme.colors.textInverted} />
+              <Text
+                style={[
+                  styles.buttonText,
+                  { color: theme.colors.textInverted },
+                ]}
+              >
+                {nextAction}
+              </Text>
+              <Ionicons
+                name={isCheckedIn ? "log-out-outline" : "log-in-outline"}
+                size={18}
+                color={theme.colors.textInverted}
+              />
             </View>
           )}
         </TouchableOpacity>
@@ -463,12 +486,16 @@ const EmployeeCheckInCheckOut = () => {
           setHistoryModalVisible(false);
         }}
       >
-        <View style={styles.modalOverlay}>
+        <Pressable
+          style={styles.modalOverlay}
+          onPress={() => setHistoryModalVisible(false)}
+        >
           <View
             style={[
               styles.modalContainer,
               { backgroundColor: theme.colors.surfacePrimary },
             ]}
+            onStartShouldSetResponder={() => true}
           >
             <View style={styles.modalHeader}>
               <Pressable
@@ -484,11 +511,19 @@ const EmployeeCheckInCheckOut = () => {
 
             {historyLoading ? (
               <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color={theme.colors.buttonPrimary} />
+                <ActivityIndicator
+                  size="large"
+                  color={theme.colors.buttonPrimary}
+                />
               </View>
             ) : historyError ? (
               <View style={styles.errorContainer}>
-                <Text style={[styles.errorText, { color: theme.statusColors.error }]}>
+                <Text
+                  style={[
+                    styles.errorText,
+                    { color: theme.statusColors.error },
+                  ]}
+                >
                   {historyError}
                 </Text>
                 <TouchableOpacity
@@ -539,7 +574,7 @@ const EmployeeCheckInCheckOut = () => {
               />
             )}
           </View>
-        </View>
+        </Pressable>
       </Modal>
 
       {/* Employee Checkin Details Modal */}
@@ -551,12 +586,16 @@ const EmployeeCheckInCheckOut = () => {
           setDetailsModalVisible(false);
         }}
       >
-        <View style={styles.modalOverlay}>
+        <Pressable
+          style={styles.modalOverlay}
+          onPress={() => setDetailsModalVisible(false)}
+        >
           <View
             style={[
               styles.modalContainer,
               { backgroundColor: theme.colors.surfacePrimary },
             ]}
+            onStartShouldSetResponder={() => true}
           >
             <View style={styles.modalHeader}>
               <View style={styles.modalHandleBar} />
@@ -670,6 +709,53 @@ const EmployeeCheckInCheckOut = () => {
                     {selectedLog?.longitude || "N/A"}
                   </Text>
                 </View>
+
+                {selectedLog?.latitude && selectedLog?.longitude ? (
+                  <View style={styles.mapContainer}>
+                    <Text
+                      style={[
+                        styles.mapLabel,
+                        { color: theme.colors.textSecondary },
+                      ]}
+                    >
+                      Location
+                    </Text>
+                    <Pressable
+                      style={styles.mapPressable}
+                    >
+                      <MapView
+                        style={styles.map}
+                        initialRegion={{
+                          latitude: parseFloat(selectedLog.latitude),
+                          longitude: parseFloat(selectedLog.longitude),
+                          latitudeDelta: 0.002,
+                          longitudeDelta: 0.002,
+                        }}
+                        scrollEnabled={true}
+                        zoomEnabled={true}
+                        rotateEnabled={true}
+                        pitchEnabled={true}
+                      >
+                        <Marker
+                          coordinate={{
+                            latitude: parseFloat(selectedLog.latitude),
+                            longitude: parseFloat(selectedLog.longitude),
+                          }}
+                          title="Check-in Location"
+                        />
+                      </MapView>
+                    </Pressable>
+                  </View>
+                ) : (
+                  <Text
+                    style={[
+                      styles.noLocationText,
+                      { color: theme.colors.textSecondary },
+                    ]}
+                  >
+                    No location data available
+                  </Text>
+                )}
               </ScrollView>
             )}
 
@@ -680,7 +766,7 @@ const EmployeeCheckInCheckOut = () => {
               />
             </View>
           </View>
-        </View>
+        </Pressable>
       </Modal>
     </SafeAreaView>
   );
@@ -873,6 +959,35 @@ const styles = StyleSheet.create({
     height: 5,
     backgroundColor: "#E0E0E0",
     borderRadius: 3,
+  },
+  mapContainer: {
+    marginTop: 15,
+    marginBottom: 16,
+    borderRadius: 12,
+  },
+  mapPressable: {
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  map: {
+    width: "100%",
+    height: 200,
+    borderRadius: 12,
+  },
+  mapLabel: {
+    fontSize: 16,
+    fontWeight: "400",
+    marginBottom: 20,
+  },
+  openMapsText: {
+    fontSize: 14,
+    marginBottom: 8,
+    textDecorationLine: "underline",
+  },
+  noLocationText: {
+    fontSize: 14,
+    textAlign: "center",
+    marginVertical: 20,
   },
 });
 
