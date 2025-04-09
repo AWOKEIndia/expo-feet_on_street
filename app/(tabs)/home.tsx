@@ -9,28 +9,51 @@ import {
   Text,
   TouchableOpacity,
   View,
+  Linking
 } from "react-native";
-import Icon from "react-native-vector-icons/MaterialIcons";
+
+
+const quickLinks = [
+  { title: 'Request Attendance', path: '/app/attendance-request/new', icon: 'document-text-outline' },
+  { title: 'Request a Shift', path: '/app/shift-request/new', icon: 'time-outline' },
+  { title: 'Request Leave', path: '/app/leave-application/new', icon: 'calendar-outline' },
+  { title: 'Claim an Expense', path: '/app/expense-claim/new', icon: 'cash-outline' },
+  { title: 'Request an Advance', path: '/app/salary-advance/new', icon: 'cash-outline' },
+  { title: 'View Salary Slips', path: '/app/salary-slip', icon: 'document-text-outline' },
+];
+
 
 export default function HomeScreen() {
   const { theme, isDark } = useTheme();
 
-  // @ts-expect-error
-  const QuickLinkItem = ({ icon, title, onPress }) => (
-    <TouchableOpacity
-      style={[styles.quickLinkItem, { borderColor: theme.colors.border }]}
-      onPress={onPress}
-      activeOpacity={0.7}
-    >
-      <View style={styles.quickLinkContent}>
-        <View style={styles.iconContainer}>{icon}</View>
-        <Text style={[styles.quickLinkText, { color: theme.colors.textPrimary }]}>{title}</Text>
+  const openLink = async (path: string) => {
+    const fullUrl = `${process.env.EXPO_PUBLIC_BASE_URL}${path}`;
+    const supported = await Linking.canOpenURL(fullUrl);
+    if (supported) {
+      await Linking.openURL(fullUrl);
+    } else {
+      alert(`Don't know how to open this URL: ${fullUrl}`);
+    }
+  };
+
+// @ts-expect-error
+const QuickLinkItem = ({ icon, title, onPress }) => (
+  <TouchableOpacity
+    style={[styles.quickLinkItem, { borderColor: theme.colors.border }]}
+    onPress={onPress}
+    activeOpacity={0.7}
+  >
+    <View style={styles.quickLinkContent}>
+      <View style={styles.iconContainer}>
+        <Ionicons name={icon} size={20} color={theme.colors.textPrimary} />
       </View>
-      <View style={styles.chevronContainer}>
-        <Ionicons name="chevron-forward-outline" size={18} color={theme.colors.textSecondary} />
-      </View>
-    </TouchableOpacity>
-  );
+      <Text style={[styles.quickLinkText, { color: theme.colors.textPrimary }]}>{title}</Text>
+    </View>
+    <View style={styles.chevronContainer}>
+      <Ionicons name="chevron-forward-outline" size={18} color={theme.colors.textSecondary} />
+    </View>
+  </TouchableOpacity>
+);
 
   return (
     <SafeAreaView
@@ -70,8 +93,8 @@ export default function HomeScreen() {
               },
             ]}
           >
-            <Icon
-              name="camera-alt"
+            <Ionicons
+              name="camera"
               size={20}
               color={theme.colors.textPrimary}
             />
@@ -108,50 +131,14 @@ export default function HomeScreen() {
 
         <View style={[styles.card, { backgroundColor: theme.colors.surfacePrimary, borderColor: theme.colors.border }]}>
           <Text style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}>Quick Links</Text>
-          <QuickLinkItem
-            icon={
-              <Ionicons
-                name="document-text-outline"
-                size={20}
-                color={theme.colors.textSecondary}
-              />
-            }
-            title="Request Attendance"
-            onPress={() => {}}
-          />
-          <QuickLinkItem
-            icon={<Ionicons name="time-outline" size={20} color={theme.colors.textSecondary} />}
-            title="Request a Shift"
-            onPress={() => {}}
-          />
-          <QuickLinkItem
-            icon={
-              <Ionicons name="calendar-outline" size={20} color={theme.colors.textSecondary} />
-            }
-            title="Request Leave"
-            onPress={() => {}}
-          />
-          <QuickLinkItem
-            icon={<Ionicons name="cash-outline" size={20} color={theme.colors.textSecondary} />}
-            title="Claim an Expense"
-            onPress={() => {}}
-          />
-          <QuickLinkItem
-            icon={<Ionicons name="cash-outline" size={20} color={theme.colors.textSecondary} />}
-            title="Request an Advance"
-            onPress={() => {}}
-          />
-          <QuickLinkItem
-            icon={
-              <Ionicons
-                name="document-text-outline"
-                size={20}
-                color={theme.colors.textSecondary}
-              />
-            }
-            title="View Salary Slips"
-            onPress={() => {}}
-          />
+          {quickLinks.map((link) => (
+            <QuickLinkItem
+              key={link.title}
+              icon={link.icon}
+              title={link.title}
+              onPress={() => openLink(link.path)}
+            />
+          ))}
         </View>
       </ScrollView>
     </SafeAreaView>
