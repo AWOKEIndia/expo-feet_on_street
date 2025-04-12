@@ -11,6 +11,7 @@ import {
   View,
   Linking
 } from "react-native";
+import { useRouter } from "expo-router";
 
 
 const quickLinks = [
@@ -25,6 +26,7 @@ const quickLinks = [
 
 export default function HomeScreen() {
   const { theme, isDark } = useTheme();
+  const router = useRouter();
 
   const openLink = async (path: string) => {
     const fullUrl = `${process.env.EXPO_PUBLIC_BASE_URL}${path}`;
@@ -92,6 +94,7 @@ const QuickLinkItem = ({ icon, title, onPress }) => (
                 borderColor: theme.colors.border,
               },
             ]}
+            onPress={() => router.push("/session/camera")}
           >
             <Ionicons
               name="camera"
