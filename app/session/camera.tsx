@@ -1,6 +1,7 @@
 import { CameraControls } from "@/components/camera/CameraControls";
 import { PermissionScreen } from "@/components/camera/PermissionScreen";
 import { useTheme } from "@/contexts/ThemeContext";
+import { Ionicons } from "@expo/vector-icons";
 import {
   CameraType,
   CameraView,
@@ -13,13 +14,11 @@ import { router } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
-  Dimensions,
   StatusBar,
   StyleSheet,
-  View,
   Text,
+  View
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
 
 export default function CameraScreen() {
   const [facing, setFacing] = useState<CameraType>("back");
@@ -27,12 +26,13 @@ export default function CameraScreen() {
   const cameraRef = useRef<CameraView>(null);
   const [isCapturing, setIsCapturing] = useState(false);
   const [flashMode, setFlashMode] = useState<FlashMode>("off");
-  const [location, setLocation] = useState<Location.LocationObject | null>(null);
+  const [location, setLocation] = useState<Location.LocationObject | null>(
+    null
+  );
   const [address, setAddress] = useState<string | null>(null);
   const [isLocationReady, setIsLocationReady] = useState(false);
 
   const { theme, isDark } = useTheme();
-  const { height, width } = Dimensions.get("window");
 
   useEffect(() => {
     let locationSubscription: Location.LocationSubscription | null = null;
@@ -51,7 +51,10 @@ export default function CameraScreen() {
           accuracy: Location.Accuracy.High,
         });
         setLocation(initialLocation);
-        await updateAddress(initialLocation.coords.latitude, initialLocation.coords.longitude);
+        await updateAddress(
+          initialLocation.coords.latitude,
+          initialLocation.coords.longitude
+        );
         setIsLocationReady(true);
 
         // Subscribe to location updates
@@ -63,7 +66,10 @@ export default function CameraScreen() {
           },
           async (newLocation) => {
             setLocation(newLocation);
-            await updateAddress(newLocation.coords.latitude, newLocation.coords.longitude);
+            await updateAddress(
+              newLocation.coords.latitude,
+              newLocation.coords.longitude
+            );
             setIsLocationReady(true);
           }
         );
@@ -89,7 +95,11 @@ export default function CameraScreen() {
         longitude,
       });
       if (addressResult) {
-        const formattedAddress = `${addressResult.street || ''} ${addressResult.name || ''}, ${addressResult.city || ''}, ${addressResult.region || ''}, ${addressResult.country || ''}`.trim();
+        const formattedAddress = `${addressResult.street || ""} ${
+          addressResult.name || ""
+        }, ${addressResult.city || ""}, ${addressResult.region || ""}, ${
+          addressResult.country || ""
+        }`.trim();
         setAddress(formattedAddress);
       }
     } catch (error) {
@@ -126,12 +136,15 @@ export default function CameraScreen() {
       });
       return location;
     } catch (error) {
-      console.error("Error getting location:", error);
+      console.error("Error getting location: ", error);
       return null;
     }
   };
 
-  const getAddressFromCoordinates = async (latitude: number, longitude: number) => {
+  const getAddressFromCoordinates = async (
+    latitude: number,
+    longitude: number
+  ) => {
     try {
       const [address] = await Location.reverseGeocodeAsync({
         latitude,
@@ -139,7 +152,7 @@ export default function CameraScreen() {
       });
       return address;
     } catch (error) {
-      console.error("Error getting address:", error);
+      console.error("Error getting address: ", error);
       return null;
     }
   };
@@ -187,7 +200,11 @@ export default function CameraScreen() {
         locationData = {
           latitude: currentLocation.coords.latitude,
           longitude: currentLocation.coords.longitude,
-          address: address ? `${address.street || ''} ${address.name || ''}, ${address.city || ''}, ${address.region || ''}, ${address.country || ''}`.trim() : null
+          address: address
+            ? `${address.street || ""} ${address.name || ""}, ${
+                address.city || ""
+              }, ${address.region || ""}, ${address.country || ""}`.trim()
+            : null,
         };
       }
 
@@ -196,8 +213,8 @@ export default function CameraScreen() {
         pathname: `/session/photo-review`,
         params: {
           path: encodeURIComponent(filePath),
-          location: locationData ? JSON.stringify(locationData) : undefined
-        }
+          location: locationData ? JSON.stringify(locationData) : undefined,
+        },
       });
     } catch (error) {
       console.error("Error taking picture:", error);
@@ -244,12 +261,18 @@ export default function CameraScreen() {
         />
 
         {isLocationReady && location && (
-          <View style={[styles.locationPreview, { backgroundColor: 'rgba(0, 0, 0, 0.7)' }]}>
+          <View
+            style={[
+              styles.locationPreview,
+              { backgroundColor: "rgba(0, 0, 0, 0.7)" },
+            ]}
+          >
             <View style={styles.locationContent}>
               <Ionicons name="location" size={20} color="white" />
               <View style={styles.locationTextContainer}>
                 <Text style={styles.coordinatesText}>
-                  {location.coords.latitude.toFixed(6)}, {location.coords.longitude.toFixed(6)}
+                  {location.coords.latitude.toFixed(6)},{" "}
+                  {location.coords.longitude.toFixed(6)}
                 </Text>
                 {address && (
                   <Text style={styles.addressText} numberOfLines={1}>
@@ -275,7 +298,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   locationPreview: {
-    position: 'absolute',
+    position: "absolute",
     bottom: 120,
     left: 16,
     right: 16,
@@ -283,20 +306,20 @@ const styles = StyleSheet.create({
     padding: 12,
   },
   locationContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
   },
   locationTextContainer: {
     marginLeft: 8,
     flex: 1,
   },
   coordinatesText: {
-    color: 'white',
+    color: "white",
     fontSize: 14,
-    fontWeight: '500',
+    fontWeight: "500",
   },
   addressText: {
-    color: 'white',
+    color: "white",
     fontSize: 12,
     opacity: 0.8,
     marginTop: 2,
