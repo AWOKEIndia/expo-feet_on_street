@@ -1,17 +1,18 @@
-import React, { useState, useEffect } from "react";
+import { useAuthContext } from "@/contexts/AuthContext";
+import Ionicons from "@expo/vector-icons/Ionicons";
+import { router } from "expo-router";
+import React, { useEffect, useState } from "react";
 import {
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
+  ActivityIndicator,
+  Alert,
+  FlatList,
   SafeAreaView,
   StatusBar,
-  FlatList,
-  Alert,
-  ActivityIndicator,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
-import { router } from "expo-router";
-import Ionicons from "@expo/vector-icons/Ionicons";
 
 interface CFLSession {
   employee: string;
@@ -55,15 +56,15 @@ export default function ReportScreen() {
   const [activeFilter, setActiveFilter] = useState("All");
   const [activePeriod, setActivePeriod] = useState("Daily");
 
+  // Authorization token
+  const { accessToken } = useAuthContext();
+
   // Function to fetch reports from Frappe backend
   const fetchReports = async (pageNumber = 0) => {
     if (!hasMore && pageNumber > 0) return;
 
     try {
       setLoading(true);
-
-      const baseUrl = process.env.EXPO_PUBLIC_BASE_URL;
-      const endpoint = `${baseUrl}/api/resource/CFL Session`;
 
       const fields = [
         "name",
@@ -77,23 +78,23 @@ export default function ReportScreen() {
         "feedback",
       ];
 
-      const headers = new Headers({
-        Accept: "application/json",
-        "Content-Type": "application/json",
-      });
-
       const params = new URLSearchParams({
         fields: JSON.stringify(fields),
         limit_start: (pageNumber * PAGE_SIZE).toString(),
         limit_page_length: PAGE_SIZE.toString(),
       });
 
-      console.log(`Fetching from: ${endpoint}?${params}`);
-
-      const response = await fetch(`${endpoint}?${params}`, {
-        method: "GET",
-        headers: headers,
-      });
+      const response = await fetch(
+        `${`${process.env.EXPO_PUBLIC_BASE_URL}/api/resource/CFL Session`}?${params}`,
+        {
+          method: "GET",
+          headers: {
+            Accept: "application/json",
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${accessToken}`,
+          },
+        }
+      );
 
       if (!response.ok) {
         const errorText = await response.text();
@@ -248,10 +249,7 @@ export default function ReportScreen() {
 
   // TODO: Implement the logic to navigate to the report details screen
   const navigateToReportDetails = (report: CFLSession) => {
-    router.push({
-      pathname: `/session/${report.name}`,
-      params: { id: report.name },
-    });
+    router.push(`/session/${report.name}`);
   };
 
   // Aggregate data for insights based on filtered data
