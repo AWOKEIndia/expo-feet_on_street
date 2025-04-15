@@ -39,6 +39,8 @@ function AppContent() {
         <Stack.Screen name="login" options={{ headerShown: false }} />
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="user" options={{ headerShown: false }} />
+        <Stack.Screen name="session/create" options={{ title: "Create Report", headerShown: true }} />
+        <Stack.Screen name="session/[id]" options={{ headerShown: true }} />
         <Stack.Screen name="+not-found" />
       </Stack>
       <StatusBar style={isDark ? "light" : "dark"} />

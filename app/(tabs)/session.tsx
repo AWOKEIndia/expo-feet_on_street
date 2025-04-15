@@ -35,7 +35,7 @@ interface CFLSession {
 }
 
 export default function ReportScreen() {
-  const { theme } = useTheme();
+  const { theme, isDark } = useTheme();
 
   // State for reports data
   const [reports, setReports] = useState<CFLSession[]>([]);
@@ -475,7 +475,7 @@ export default function ReportScreen() {
     <SafeAreaView
       style={[styles.container, { backgroundColor: theme.colors.background }]}
     >
-      <StatusBar barStyle={theme.colors.background === "#000000" ? "light-content" : "dark-content"} />
+      <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
 
       <View
         style={[styles.contentContainer, { backgroundColor: theme.colors.background }]}
