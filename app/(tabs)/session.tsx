@@ -51,7 +51,7 @@ export default function ReportScreen() {
 
   // For sticky header
   const scrollY = useRef(new Animated.Value(0)).current;
-  const filterTabsHeight = 60; // Approximate height of filter tabs
+  const filterTabsHeight = 60;
   const headerHeight = useRef(0);
   const [isFilterTabsSticky, setIsFilterTabsSticky] = useState(false);
   const scrollViewRef = useRef<ScrollView>(null);
@@ -751,6 +751,7 @@ export default function ReportScreen() {
             ...theme.shadows.md
           }
         ]}
+        onPress={() => router.push("/session/create")}
       >
         <Ionicons name="add" size={24} color={theme.colors.textInverted} />
       </TouchableOpacity>
