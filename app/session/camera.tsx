@@ -301,7 +301,7 @@ export default function CameraScreen() {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" />
+      <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
       <CameraView
         style={styles.camera}
         facing={facing}
