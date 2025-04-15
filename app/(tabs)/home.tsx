@@ -75,6 +75,7 @@ const QuickLinkItem = ({ icon, title, onPress }) => (
               styles.sessionReportButton,
               { backgroundColor: theme.colors.buttonPrimary },
             ]}
+            onPress={() => router.push("/session/create")}
           >
             <Text
               style={[

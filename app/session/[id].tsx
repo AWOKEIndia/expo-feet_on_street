@@ -1,14 +1,16 @@
+import { useTheme } from "@/contexts/ThemeContext";
 import { useLocalSearchParams } from "expo-router";
 import React from "react";
-import { Text, View } from "react-native";
+import { Text, SafeAreaView, StatusBar } from "react-native";
 
 const SessionReportScreen = () => {
   const { id } = useLocalSearchParams<{ id: string }>();
+  const { theme, isDark } = useTheme();
   return (
-    <View>
-      <Text>Session ID: </Text>
-      <Text>{id}</Text>
-    </View>
+    <SafeAreaView>
+      <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
+      <Text style={{ color: isDark ? 'white' : 'black' }}>Session ID: {id}</Text>
+    </SafeAreaView>
   );
 };
 

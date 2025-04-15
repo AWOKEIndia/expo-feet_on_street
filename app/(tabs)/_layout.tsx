@@ -184,7 +184,7 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="report"
+        name="session"
         options={{
           title: "Session Report",
           tabBarIcon: ({ color }: { color: string }) => (
