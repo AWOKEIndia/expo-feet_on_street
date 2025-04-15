@@ -31,6 +31,7 @@ export const authService = {
       const authUrl = `${FRAPPE_OAUTH_CONFIG.authorizationEndpoint}?` +
         `client_id=${encodeURIComponent(FRAPPE_OAUTH_CONFIG.clientId)}&` +
         `redirect_uri=${encodeURIComponent(FRAPPE_OAUTH_CONFIG.redirectUri)}&` +
+        `scope=${encodeURIComponent('openid all')}&` +
         `response_type=code`;
 
       console.log("Auth URL: ", authUrl);
