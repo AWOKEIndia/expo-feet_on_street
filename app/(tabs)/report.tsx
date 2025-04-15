@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -6,12 +6,17 @@ import {
   StyleSheet,
   SafeAreaView,
   StatusBar,
-  FlatList,
   Alert,
   ActivityIndicator,
+  ScrollView,
+  Animated,
+  NativeSyntheticEvent,
+  NativeScrollEvent,
+  RefreshControl,
 } from "react-native";
 import { router } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
+import { useTheme } from "@/contexts/ThemeContext";
 
 interface CFLSession {
   employee: string;
@@ -29,19 +34,7 @@ interface CFLSession {
 }
 
 export default function ReportScreen() {
-  const theme = {
-    background: "#f5f7fa",
-    card: "#ffffff",
-    text: "#333333",
-    textSecondary: "#757575",
-    border: "#e0e0e0",
-    primary: "#4169e1",
-    buttonText: "#ffffff",
-    iconGray: "#8a8a8a",
-    error: "#f44336",
-    success: "#4caf50",
-    warning: "#ff9800",
-  };
+  const { theme } = useTheme();
 
   // State for reports data
   const [reports, setReports] = useState<CFLSession[]>([]);
@@ -54,6 +47,13 @@ export default function ReportScreen() {
   // Filter states
   const [activeFilter, setActiveFilter] = useState("All");
   const [activePeriod, setActivePeriod] = useState("Daily");
+
+  // For sticky header
+  const scrollY = useRef(new Animated.Value(0)).current;
+  const filterTabsHeight = 60; // Approximate height of filter tabs
+  const headerHeight = useRef(0);
+  const [isFilterTabsSticky, setIsFilterTabsSticky] = useState(false);
+  const scrollViewRef = useRef<ScrollView>(null);
 
   // Function to fetch reports from Frappe backend
   const fetchReports = async (pageNumber = 0) => {
@@ -165,7 +165,6 @@ export default function ReportScreen() {
     }
   };
 
-  // Helper to check if a date is within a specific range
   const isDateInRange = (
     dateString?: string,
     startDate?: Date,
@@ -184,7 +183,6 @@ export default function ReportScreen() {
 
   // Apply both period and type filters
   const applyFilters = () => {
-    // First filter by date period
     let periodFiltered: CFLSession[] = [];
 
     // Get current date at the beginning of the day (midnight)
@@ -246,7 +244,6 @@ export default function ReportScreen() {
     setFilteredReports(typeFiltered);
   };
 
-  // TODO: Implement the logic to navigate to the report details screen
   const navigateToReportDetails = (report: CFLSession) => {
     router.push({
       pathname: `/session/${report.name}`,
@@ -286,11 +283,16 @@ export default function ReportScreen() {
   };
 
   // Render report item in the SessionListScreen style
-  const renderReportItem = ({ item }: { item: CFLSession }) => (
+  const renderReportItem = (item: CFLSession) => (
     <TouchableOpacity
+      key={item.name}
       style={[
         styles.reportCard,
-        { backgroundColor: theme.card, borderColor: theme.border },
+        {
+          backgroundColor: theme.colors.surfacePrimary,
+          borderColor: theme.colors.border,
+          ...theme.shadows.sm
+        },
       ]}
       onPress={() => navigateToReportDetails(item)}
     >
@@ -299,10 +301,10 @@ export default function ReportScreen() {
           <Ionicons
             name="document-text-outline"
             size={18}
-            color={theme.primary}
+            color={theme.brandColors.primary}
             style={styles.reportIcon}
           />
-          <Text style={[styles.reportType, { color: theme.text }]}>
+          <Text style={[styles.reportType, { color: theme.colors.textPrimary }]}>
             {item.trainer_name
               ? `Session by ${item.trainer_name}`
               : "CFL Session"}
@@ -312,10 +314,10 @@ export default function ReportScreen() {
           <View
             style={[
               styles.statusBadge,
-              { backgroundColor: theme.primary + "20" },
+              { backgroundColor: theme.brandColors.primary + "20" },
             ]}
           >
-            <Text style={[styles.statusText, { color: theme.primary }]}>
+            <Text style={[styles.statusText, { color: theme.brandColors.primary }]}>
               {item.cfl_center}
             </Text>
           </View>
@@ -327,9 +329,9 @@ export default function ReportScreen() {
           <Ionicons
             name="calendar-outline"
             size={16}
-            color={theme.textSecondary}
+            color={theme.colors.textSecondary}
           />
-          <Text style={[styles.reportInfoText, { color: theme.textSecondary }]}>
+          <Text style={[styles.reportInfoText, { color: theme.colors.textSecondary }]}>
             {formatDate(item.date)}
           </Text>
         </View>
@@ -337,10 +339,10 @@ export default function ReportScreen() {
           <Ionicons
             name="location-outline"
             size={16}
-            color={theme.textSecondary}
+            color={theme.colors.textSecondary}
           />
           <Text
-            style={[styles.reportInfoText, { color: theme.textSecondary }]}
+            style={[styles.reportInfoText, { color: theme.colors.textSecondary }]}
             numberOfLines={1}
           >
             {item.village
@@ -352,9 +354,9 @@ export default function ReportScreen() {
           <Ionicons
             name="people-outline"
             size={16}
-            color={theme.textSecondary}
+            color={theme.colors.textSecondary}
           />
-          <Text style={[styles.reportInfoText, { color: theme.textSecondary }]}>
+          <Text style={[styles.reportInfoText, { color: theme.colors.textSecondary }]}>
             {item.participant_count || 0} participants
           </Text>
         </View>
@@ -363,10 +365,10 @@ export default function ReportScreen() {
       {item.feedback && (
         <>
           <View
-            style={[styles.insightsDivider, { backgroundColor: theme.border }]}
+            style={[styles.insightsDivider, { backgroundColor: theme.colors.divider }]}
           />
           <Text
-            style={[styles.feedbackText, { color: theme.textSecondary }]}
+            style={[styles.feedbackText, { color: theme.colors.textSecondary }]}
             numberOfLines={2}
           >
             {item.feedback}
@@ -378,15 +380,15 @@ export default function ReportScreen() {
         <TouchableOpacity
           style={[
             styles.actionButton,
-            { backgroundColor: theme.success + "15" },
+            { backgroundColor: theme.statusColors.success + "15" },
           ]}
         >
           <Ionicons
             name="cloud-download-outline"
             size={16}
-            color={theme.success}
+            color={theme.statusColors.success}
           />
-          <Text style={[styles.actionButtonText, { color: theme.success }]}>
+          <Text style={[styles.actionButtonText, { color: theme.statusColors.success }]}>
             Download PDF
           </Text>
         </TouchableOpacity>
@@ -394,12 +396,12 @@ export default function ReportScreen() {
         <TouchableOpacity
           style={[
             styles.actionButton,
-            { backgroundColor: theme.primary + "15" },
+            { backgroundColor: theme.brandColors.primary + "15" },
           ]}
           onPress={() => navigateToReportDetails(item)}
         >
-          <Ionicons name="eye-outline" size={16} color={theme.primary} />
-          <Text style={[styles.actionButtonText, { color: theme.primary }]}>
+          <Ionicons name="eye-outline" size={16} color={theme.brandColors.primary} />
+          <Text style={[styles.actionButtonText, { color: theme.brandColors.primary }]}>
             View Details
           </Text>
         </TouchableOpacity>
@@ -413,8 +415,8 @@ export default function ReportScreen() {
 
     return (
       <View style={styles.footerLoader}>
-        <ActivityIndicator size="small" color={theme.primary} />
-        <Text style={[styles.loadingText, { color: theme.textSecondary }]}>
+        <ActivityIndicator size="small" color={theme.brandColors.primary} />
+        <Text style={[styles.loadingText, { color: theme.colors.textSecondary }]}>
           Loading more sessions...
         </Text>
       </View>
@@ -430,205 +432,329 @@ export default function ReportScreen() {
         <Ionicons
           name="alert-circle-outline"
           size={48}
-          color={theme.textSecondary}
+          color={theme.colors.textSecondary}
         />
-        <Text style={[styles.emptyText, { color: theme.textSecondary }]}>
+        <Text style={[styles.emptyText, { color: theme.colors.textSecondary }]}>
           No session reports found for the selected period
         </Text>
       </View>
     );
   };
 
+  // @ts-expect-error
+  const onHeaderLayout = (event) => {
+    const { height } = event.nativeEvent.layout;
+    headerHeight.current = height;
+  };
+
+  // Load more when reaching end of scroll
+  const handleScroll = Animated.event(
+    [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+    {
+      useNativeDriver: false,
+      listener: (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+        const offsetY = event.nativeEvent.contentOffset.y;
+        if (
+          offsetY + event.nativeEvent.layoutMeasurement.height >=
+            event.nativeEvent.contentSize.height - 20 &&
+          !loading &&
+          hasMore
+        ) {
+          handleLoadMore();
+        }
+        setIsFilterTabsSticky(offsetY > headerHeight.current);
+      },
+    }
+  );
+
+  // Pull to refresh
+  const handleRefresh = () => {
+    setPage(0);
+    fetchReports(0);
+  };
+
   return (
     <SafeAreaView
-      style={[styles.container, { backgroundColor: theme.background }]}
+      style={[styles.container, { backgroundColor: theme.colors.background }]}
     >
-      <StatusBar barStyle="dark-content" />
+      <StatusBar barStyle={theme.colors.background === "#000000" ? "light-content" : "dark-content"} />
 
       <View
-        style={[styles.contentContainer, { backgroundColor: theme.background }]}
+        style={[styles.contentContainer, { backgroundColor: theme.colors.background }]}
       >
-        {/* Period Toggle */}
-        <View
-          style={[
-            styles.periodToggleContainer,
-            { backgroundColor: theme.card, borderColor: theme.border },
-          ]}
-        >
-          <Text
-            style={[styles.periodToggleLabel, { color: theme.textSecondary }]}
+        {/* Sticky Filter Tabs (shown when scrolled past the header) */}
+        {isFilterTabsSticky && (
+          <Animated.View
+            style={[
+              styles.stickyFilterTabs,
+              {
+                backgroundColor: theme.colors.background,
+                borderBottomColor: theme.colors.border,
+                zIndex: 10,
+              },
+            ]}
           >
-            Report Period:
-          </Text>
-          <View style={styles.periodToggleButtons}>
-            {["Daily", "Weekly", "Monthly"].map((period) => (
-              <TouchableOpacity
-                key={period}
-                style={[
-                  styles.periodToggleButton,
-                  activePeriod === period && styles.activePeriodToggleButton,
-                  {
-                    backgroundColor:
-                      activePeriod === period ? theme.primary : theme.card,
-                    borderColor: theme.border,
-                  },
-                ]}
-                onPress={() => handlePeriodChange(period)}
-              >
-                <Text
+            <View style={styles.filterTabs}>
+              {["All", "Sessions", "Reports"].map((filter) => (
+                <TouchableOpacity
+                  key={`sticky-${filter}`}
                   style={[
-                    styles.periodToggleText,
+                    styles.filterTab,
+                    activeFilter === filter && styles.activeFilterTab,
                     {
-                      color:
-                        activePeriod === period
-                          ? theme.buttonText
-                          : theme.textSecondary,
+                      borderColor:
+                        activeFilter === filter ? theme.brandColors.primary : "transparent",
+                    },
+                  ]}
+                  onPress={() => handleFilterChange(filter)}
+                >
+                  <Text
+                    style={[
+                      styles.filterText,
+                      {
+                        color:
+                          activeFilter === filter
+                            ? theme.brandColors.primary
+                            : theme.colors.textSecondary,
+                      },
+                    ]}
+                  >
+                    {filter}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </Animated.View>
+        )}
+
+        {/* Main Scrollable Content */}
+        <ScrollView
+          ref={scrollViewRef}
+          scrollEventThrottle={16}
+          onScroll={handleScroll}
+          refreshControl={
+            <RefreshControl
+              refreshing={loading && page === 0}
+              onRefresh={handleRefresh}
+              tintColor={theme.brandColors.primary}
+            />
+          }
+          contentContainerStyle={
+            filteredReports.length === 0
+              ? { flexGrow: 1 }
+              : { paddingBottom: 80 }
+          }
+        >
+          {/* Header Section (will be measured for sticky detection) */}
+          <View onLayout={onHeaderLayout}>
+            {/* Period Toggle */}
+            <View
+              style={[
+                styles.periodToggleContainer,
+                {
+                  backgroundColor: theme.colors.surfacePrimary,
+                  borderColor: theme.colors.border,
+                },
+              ]}
+            >
+              <Text
+                style={[
+                  styles.periodToggleLabel,
+                  { color: theme.colors.textSecondary },
+                ]}
+              >
+                Report Period:
+              </Text>
+              <View style={styles.periodToggleButtons}>
+                {["Daily", "Weekly", "Monthly"].map((period) => (
+                  <TouchableOpacity
+                    key={period}
+                    style={[
+                      styles.periodToggleButton,
+                      activePeriod === period &&
+                        styles.activePeriodToggleButton,
+                      {
+                        backgroundColor:
+                          activePeriod === period ? theme.brandColors.primary : theme.colors.surfacePrimary,
+                        borderColor: theme.colors.border,
+                      },
+                    ]}
+                    onPress={() => handlePeriodChange(period)}
+                  >
+                    <Text
+                      style={[
+                        styles.periodToggleText,
+                        {
+                          color:
+                            activePeriod === period
+                              ? theme.colors.textInverted
+                              : theme.colors.textSecondary,
+                        },
+                      ]}
+                    >
+                      {period}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            {/* Insights Summary Card */}
+            <View style={[
+              styles.summaryCard,
+              {
+                backgroundColor: theme.colors.surfacePrimary,
+                ...theme.shadows.sm
+              }
+            ]}>
+              <Text style={[styles.summaryTitle, { color: theme.colors.textPrimary }]}>
+                CFL Sessions Overview ({activePeriod})
+              </Text>
+
+              <View style={styles.summaryGrid}>
+                <View
+                  style={[
+                    styles.summaryItem,
+                    {
+                      borderRightColor: theme.colors.divider,
+                      borderBottomColor: theme.colors.divider,
                     },
                   ]}
                 >
-                  {period}
-                </Text>
-              </TouchableOpacity>
-            ))}
+                  <Text style={[styles.summaryValue, { color: theme.brandColors.primary }]}>
+                    {getAggregatedData().totalReports}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.summaryLabel,
+                      { color: theme.colors.textSecondary },
+                    ]}
+                  >
+                    Total Sessions
+                  </Text>
+                </View>
+
+                <View
+                  style={[
+                    styles.summaryItem,
+                    { borderBottomColor: theme.colors.divider },
+                  ]}
+                >
+                  <Text style={[styles.summaryValue, { color: theme.brandColors.primary }]}>
+                    {getAggregatedData().totalParticipants}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.summaryLabel,
+                      { color: theme.colors.textSecondary },
+                    ]}
+                  >
+                    Participants
+                  </Text>
+                </View>
+
+                <View
+                  style={[
+                    styles.summaryItem,
+                    { borderRightColor: theme.colors.divider },
+                  ]}
+                >
+                  <Text style={[styles.summaryValue, { color: theme.brandColors.primary }]}>
+                    {getAggregatedData().uniqueVillages}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.summaryLabel,
+                      { color: theme.colors.textSecondary },
+                    ]}
+                  >
+                    Villages
+                  </Text>
+                </View>
+
+                <View style={styles.summaryItem}>
+                  <Text style={[styles.summaryValue, { color: theme.statusColors.success }]}>
+                    {getAggregatedData().completedReports}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.summaryLabel,
+                      { color: theme.colors.textSecondary },
+                    ]}
+                  >
+                    Completed
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.summaryFooter}>
+                <TouchableOpacity style={styles.downloadButton}>
+                  <Ionicons
+                    name="download-outline"
+                    size={16}
+                    color={theme.brandColors.primary}
+                  />
+                  <Text style={[styles.downloadText, { color: theme.brandColors.primary }]}>
+                    Export Reports Data
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            {/* Non-sticky Filter Tabs */}
+            <View style={styles.filterTabs}>
+              {["All", "Sessions", "Reports"].map((filter) => (
+                <TouchableOpacity
+                  key={filter}
+                  style={[
+                    styles.filterTab,
+                    activeFilter === filter && styles.activeFilterTab,
+                    {
+                      borderColor:
+                        activeFilter === filter ? theme.brandColors.primary : "transparent",
+                    },
+                  ]}
+                  onPress={() => handleFilterChange(filter)}
+                >
+                  <Text
+                    style={[
+                      styles.filterText,
+                      {
+                        color:
+                          activeFilter === filter
+                            ? theme.brandColors.primary
+                            : theme.colors.textSecondary,
+                      },
+                    ]}
+                  >
+                    {filter}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
           </View>
-        </View>
 
-        {/* Insights Summary Card */}
-        <View style={[styles.summaryCard, { backgroundColor: theme.card }]}>
-          <Text style={[styles.summaryTitle, { color: theme.text }]}>
-            CFL Sessions Overview ({activePeriod})
-          </Text>
-
-          <View style={styles.summaryGrid}>
-            <View
-              style={[
-                styles.summaryItem,
-                {
-                  borderRightColor: theme.border,
-                  borderBottomColor: theme.border,
-                },
-              ]}
-            >
-              <Text style={[styles.summaryValue, { color: theme.primary }]}>
-                {getAggregatedData().totalReports}
-              </Text>
-              <Text
-                style={[styles.summaryLabel, { color: theme.textSecondary }]}
-              >
-                Total Sessions
-              </Text>
-            </View>
-
-            <View
-              style={[styles.summaryItem, { borderBottomColor: theme.border }]}
-            >
-              <Text style={[styles.summaryValue, { color: theme.primary }]}>
-                {getAggregatedData().totalParticipants}
-              </Text>
-              <Text
-                style={[styles.summaryLabel, { color: theme.textSecondary }]}
-              >
-                Participants
-              </Text>
-            </View>
-
-            <View
-              style={[styles.summaryItem, { borderRightColor: theme.border }]}
-            >
-              <Text style={[styles.summaryValue, { color: theme.primary }]}>
-                {getAggregatedData().uniqueVillages}
-              </Text>
-              <Text
-                style={[styles.summaryLabel, { color: theme.textSecondary }]}
-              >
-                Villages
-              </Text>
-            </View>
-
-            <View style={styles.summaryItem}>
-              <Text style={[styles.summaryValue, { color: theme.success }]}>
-                {getAggregatedData().completedReports}
-              </Text>
-              <Text
-                style={[styles.summaryLabel, { color: theme.textSecondary }]}
-              >
-                Completed
-              </Text>
-            </View>
+          {/* Report List Items */}
+          <View style={styles.reportsList}>
+            {filteredReports.length > 0
+              ? filteredReports.map((item) => renderReportItem(item))
+              : renderEmpty()}
+            {renderFooter()}
           </View>
-
-          <View style={styles.summaryFooter}>
-            <TouchableOpacity style={styles.downloadButton}>
-              <Ionicons
-                name="download-outline"
-                size={16}
-                color={theme.primary}
-              />
-              <Text style={[styles.downloadText, { color: theme.primary }]}>
-                Export Reports Data
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* Filter Tabs */}
-        <View style={styles.filterTabs}>
-          {["All", "Sessions", "Reports"].map((filter) => (
-            <TouchableOpacity
-              key={filter}
-              style={[
-                styles.filterTab,
-                activeFilter === filter && styles.activeFilterTab,
-                {
-                  borderColor:
-                    activeFilter === filter ? theme.primary : "transparent",
-                },
-              ]}
-              onPress={() => handleFilterChange(filter)}
-            >
-              <Text
-                style={[
-                  styles.filterText,
-                  {
-                    color:
-                      activeFilter === filter
-                        ? theme.primary
-                        : theme.textSecondary,
-                  },
-                ]}
-              >
-                {filter}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-
-        {/* Reports List */}
-        <FlatList
-          data={filteredReports}
-          renderItem={renderReportItem}
-          keyExtractor={(item) => item.name}
-          contentContainerStyle={[
-            styles.reportsList,
-            filteredReports.length === 0 && styles.emptyListContainer,
-          ]}
-          onEndReached={handleLoadMore}
-          onEndReachedThreshold={0.3}
-          ListFooterComponent={renderFooter}
-          ListEmptyComponent={renderEmpty}
-          refreshing={loading && page === 0}
-          onRefresh={() => {
-            setPage(0);
-            fetchReports(0);
-          }}
-        />
+        </ScrollView>
       </View>
 
       {/* Create Report Button */}
       <TouchableOpacity
-        style={[styles.fabButton, { backgroundColor: theme.primary }]}
+        style={[
+          styles.fabButton,
+          {
+            backgroundColor: theme.brandColors.primary,
+            ...theme.shadows.md
+          }
+        ]}
       >
-        <Ionicons name="add" size={24} color={theme.buttonText} />
+        <Ionicons name="add" size={24} color={theme.colors.textInverted} />
       </TouchableOpacity>
     </SafeAreaView>
   );
@@ -691,10 +817,7 @@ const styles = StyleSheet.create({
     margin: 16,
     marginTop: 8,
     borderRadius: 12,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 6,
-    elevation: 4,
+    overflow: 'hidden',
   },
   summaryTitle: {
     fontSize: 16,
@@ -710,11 +833,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 16,
     alignItems: "center",
-    borderRightWidth: 0.5,
-    borderBottomWidth: 0.5,
-    borderLeftWidth: 0.5,
-    borderTopWidth: 0.5,
-    borderColor: "#e0e0e0",
+    borderWidth: 0.5,
   },
   summaryValue: {
     fontSize: 24,
@@ -741,10 +860,19 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "500",
   },
+  stickyFilterTabs: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    borderBottomWidth: 1,
+    paddingTop: 10,
+    paddingBottom: 5,
+  },
   filterTabs: {
     flexDirection: "row",
     marginHorizontal: 16,
-    marginBottom: 12,
+    marginBottom: 4,
   },
   filterTab: {
     paddingVertical: 8,
@@ -773,10 +901,6 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     padding: 16,
     borderWidth: 1,
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
-    shadowRadius: 2,
-    elevation: 1,
   },
   reportHeader: {
     flexDirection: "row",
@@ -862,6 +986,7 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: 16,
     marginTop: 12,
+    textAlign: 'center',
   },
   fabButton: {
     position: "absolute",
@@ -872,10 +997,6 @@ const styles = StyleSheet.create({
     borderRadius: 28,
     justifyContent: "center",
     alignItems: "center",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 3,
-    elevation: 5,
   },
   footer: {
     flexDirection: "row",
@@ -891,7 +1012,6 @@ const styles = StyleSheet.create({
   },
   footerItemActive: {
     borderTopWidth: 2,
-    borderTopColor: "#4169e1",
   },
   footerText: {
     fontSize: 12,
