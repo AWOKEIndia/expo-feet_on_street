@@ -166,20 +166,20 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="attendance"
+        name="attendance-and-leave"
         options={{
           title: "Attendance",
           tabBarIcon: ({ color }: { color: string }) => (
-            <Ionicons name="checkmark-done-circle-outline" size={24} color={color} />
+            <Ionicons name="calendar-outline" size={24} color={color} />
           ),
         }}
       />
       <Tabs.Screen
-        name="leaves"
+        name="gallery"
         options={{
-          title: "Leaves",
+          title: "Gallery",
           tabBarIcon: ({ color }: { color: string }) => (
-            <Ionicons name="calendar-outline" size={24} color={color} />
+            <Ionicons name="grid" size={24} color={color} />
           ),
         }}
       />
