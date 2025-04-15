@@ -5,10 +5,11 @@ import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Image,
+  SafeAreaView,
   StyleSheet,
   Text,
   TouchableOpacity,
-  View
+  View,
 } from "react-native";
 
 interface LocationData {
@@ -23,91 +24,112 @@ export default function PhotoReviewScreen() {
     path: string;
     location?: string;
   }>();
+
   const [imageUri, setImageUri] = useState<string | null>(null);
   const [locationData, setLocationData] = useState<LocationData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const processImage = async () => {
-      if (path) {
+    const loadImageData = async () => {
+      try {
+        if (!path) return;
+
         const decodedPath = decodeURIComponent(path);
-        let locationInfo: LocationData | null = null;
+        setImageUri(decodedPath);
 
         if (location) {
           try {
-            locationInfo = JSON.parse(location) as LocationData;
-            setLocationData(locationInfo);
+            const parsedLocation = JSON.parse(location) as LocationData;
+            setLocationData(parsedLocation);
           } catch (error) {
-            console.error("Error parsing location data:", error);
+            console.error("Failed to parse location data:", error);
           }
         }
-        setImageUri(decodedPath);
+      } catch (error) {
+        console.error("Failed to load image:", error);
+      } finally {
         setIsLoading(false);
       }
     };
 
-    processImage();
+    loadImageData();
   }, [path, location]);
 
-  const handleClose = () => {
-    router.back();
-  };
+  const handleClose = () => router.back();
 
   if (isLoading) {
     return (
-      <View
+      <SafeAreaView
         style={[styles.container, { backgroundColor: theme.colors.background }]}
       >
         <ActivityIndicator size="large" color={theme.colors.buttonPrimary} />
-      </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (!imageUri) {
+    return (
+      <SafeAreaView
+        style={[styles.container, { backgroundColor: theme.colors.background }]}
+      >
+        <Text style={{ color: theme.colors.textPrimary }}>
+          Failed to load image
+        </Text>
+      </SafeAreaView>
     );
   }
 
   return (
-    <View
+    <SafeAreaView
       style={[styles.container, { backgroundColor: theme.colors.background }]}
     >
       <View style={styles.header}>
-        <TouchableOpacity style={styles.closeButton} onPress={handleClose}>
+        <TouchableOpacity
+          style={styles.closeButton}
+          onPress={handleClose}
+          accessibilityLabel="Close preview"
+        >
           <Ionicons name="close" size={24} color={theme.colors.textPrimary} />
         </TouchableOpacity>
       </View>
 
       <View style={styles.imageContainer}>
-        {imageUri && (
-          <>
-            <Image
-              source={{ uri: imageUri }}
-              style={styles.image}
-              resizeMode="contain"
-            />
-            {locationData && (
-              <View
-                style={[
-                  styles.locationOverlay,
-                  { backgroundColor: "rgba(0, 0, 0, 0.7)" },
-                ]}
-              >
-                <View style={styles.locationContent}>
-                  <Ionicons name="location" size={20} color="white" />
-                  <View style={styles.locationTextContainer}>
-                    <Text style={styles.coordinatesText}>
-                      {locationData.latitude.toFixed(6)},{" "}
-                      {locationData.longitude.toFixed(6)}
-                    </Text>
-                    {locationData.address && (
-                      <Text style={styles.addressText} numberOfLines={2}>
-                        {locationData.address}
-                      </Text>
-                    )}
-                  </View>
-                </View>
+        <Image
+          source={{ uri: imageUri }}
+          style={styles.image}
+          resizeMode="contain"
+          accessibilityLabel="Captured photo"
+        />
+
+        {locationData && (
+          <View style={styles.locationOverlay}>
+            <View style={styles.locationContent}>
+              <Ionicons
+                name="location"
+                size={20}
+                color="white"
+                accessibilityLabel="Location icon"
+              />
+              <View style={styles.locationTextContainer}>
+                <Text style={styles.coordinatesText}>
+                  {locationData.latitude.toFixed(6)},{" "}
+                  {locationData.longitude.toFixed(6)}
+                </Text>
+                {locationData.address && (
+                  <Text
+                    style={styles.addressText}
+                    numberOfLines={2}
+                    ellipsizeMode="tail"
+                  >
+                    {locationData.address}
+                  </Text>
+                )}
               </View>
-            )}
-          </>
+            </View>
+          </View>
         )}
       </View>
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -116,12 +138,11 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   header: {
-    flexDirection: "row",
-    justifyContent: "flex-end",
     padding: 16,
+    alignItems: "flex-end",
   },
   closeButton: {
-    padding: 8,
+    padding: 4,
   },
   imageContainer: {
     flex: 1,
@@ -137,6 +158,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     padding: 16,
+    backgroundColor: "rgba(0, 0, 0, 0.7)",
   },
   locationContent: {
     flexDirection: "row",
