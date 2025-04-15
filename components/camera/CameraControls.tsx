@@ -1,5 +1,10 @@
 import React from "react";
-import { StyleSheet, TouchableOpacity, View, ActivityIndicator } from "react-native";
+import {
+  StyleSheet,
+  TouchableOpacity,
+  View,
+  ActivityIndicator,
+} from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { FlashMode } from "expo-camera";
 
@@ -12,50 +17,62 @@ type CameraControlsProps = {
   flashMode: FlashMode;
 };
 
-export const CameraControls = ({
+export default function CameraControls({
   onClose,
   onFlip,
   onCapture,
   onFlashToggle,
   isCapturing,
   flashMode,
-}: CameraControlsProps) => (
-  <>
-    <View style={styles.topControls}>
-      <TouchableOpacity style={styles.iconButton} onPress={onClose}>
-        <Ionicons name="close" size={28} color="white" />
-      </TouchableOpacity>
+}: CameraControlsProps) {
+  // Flash icon based on current mode
+  const getFlashIcon = () => {
+    switch (flashMode) {
+      case "on":
+        return "flash";
+      case "auto":
+        return "flash-outline";
+      default:
+        return "flash-off";
+    }
+  };
 
-      <TouchableOpacity style={styles.iconButton} onPress={onFlashToggle}>
-        <Ionicons
-          name={flashMode === "off" ? "flash-off" : flashMode === "on" ? "flash" : "flash-outline"}
-          size={28}
-          color="white"
-        />
-      </TouchableOpacity>
-    </View>
+  return (
+    <>
+      {/* Top controls */}
+      <View style={styles.topControls}>
+        <TouchableOpacity style={styles.iconButton} onPress={onClose}>
+          <Ionicons name="close" size={28} color="white" />
+        </TouchableOpacity>
 
-    <View style={styles.bottomControls}>
-      <TouchableOpacity style={styles.flipButton} onPress={onFlip}>
-        <Ionicons name="camera-reverse" size={30} color="white" />
-      </TouchableOpacity>
+        <TouchableOpacity style={styles.iconButton} onPress={onFlashToggle}>
+          <Ionicons name={getFlashIcon()} size={28} color="white" />
+        </TouchableOpacity>
+      </View>
 
-      <TouchableOpacity
-        style={[styles.captureButton, isCapturing && { opacity: 0.7 }]}
-        onPress={onCapture}
-        disabled={isCapturing}
-      >
-        {isCapturing ? (
-          <ActivityIndicator size="large" color="white" />
-        ) : (
-          <View style={styles.captureButtonInner} />
-        )}
-      </TouchableOpacity>
+      {/* Bottom controls */}
+      <View style={styles.bottomControls}>
+        <TouchableOpacity style={styles.flipButton} onPress={onFlip}>
+          <Ionicons name="camera-reverse" size={30} color="white" />
+        </TouchableOpacity>
 
-      <View style={styles.placeholder} />
-    </View>
-  </>
-);
+        <TouchableOpacity
+          style={[styles.captureButton, isCapturing && styles.capturingButton]}
+          onPress={onCapture}
+          disabled={isCapturing}
+        >
+          {isCapturing ? (
+            <ActivityIndicator size="large" color="white" />
+          ) : (
+            <View style={styles.captureButtonInner} />
+          )}
+        </TouchableOpacity>
+
+        <View style={styles.placeholder} />
+      </View>
+    </>
+  );
+}
 
 const styles = StyleSheet.create({
   topControls: {
@@ -106,5 +123,8 @@ const styles = StyleSheet.create({
   placeholder: {
     width: 44,
     height: 44,
+  },
+  capturingButton: {
+    opacity: 0.7,
   },
 });
