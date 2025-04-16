@@ -1,3 +1,5 @@
+import CameraControls from "@/components/camera/CameraControls";
+import PermissionScreen from "@/components/camera/PermissionScreen";
 import { useTheme } from "@/contexts/ThemeContext";
 import { Ionicons } from "@expo/vector-icons";
 import {
@@ -14,57 +16,50 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
-  Dimensions,
   StatusBar,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from "react-native";
-import PermissionScreen from "@/components/camera/PermissionScreen";
-import CameraControls from "@/components/camera/CameraControls";
 
-// Main camera screen component
+type LocationData = {
+  latitude: number;
+  longitude: number;
+  address: string | null;
+};
+
 export default function CameraScreen() {
-  // Camera state
   const [facing, setFacing] = useState<CameraType>("back");
   const cameraRef = useRef<CameraView>(null);
   const [isCapturing, setIsCapturing] = useState(false);
   const [flashMode, setFlashMode] = useState<FlashMode>("off");
 
-  // Permission states
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
   const [locationPermission, setLocationPermission] = useState(false);
   const [storagePermission, setStoragePermission] = useState(false);
   const [isCheckingPermissions, setIsCheckingPermissions] = useState(true);
 
-  // Location state
-  const [location, setLocation] = useState<Location.LocationObject | null>(
-    null
-  );
+  const [location, setLocation] = useState<Location.LocationObject | null>(null);
   const [address, setAddress] = useState<string | null>(null);
   const [isLocationReady, setIsLocationReady] = useState(false);
 
   const { theme, isDark } = useTheme();
-  const windowDimensions = Dimensions.get("window");
 
-  // Check all required permissions on component mount
   useEffect(() => {
     const checkAllPermissions = async () => {
       setIsCheckingPermissions(true);
 
-      // Check storage permission
-      const mediaLibraryPermission = await MediaLibrary.getPermissionsAsync();
-      setStoragePermission(mediaLibraryPermission.granted);
+      const [mediaLibraryPermission, locationPermissionResponse] = await Promise.all([
+        MediaLibrary.getPermissionsAsync(),
+        Location.getForegroundPermissionsAsync(),
+      ]);
 
-      // Check location permission
-      const locationPermissionResponse =
-        await Location.getForegroundPermissionsAsync();
+      setStoragePermission(mediaLibraryPermission.granted);
       setLocationPermission(locationPermissionResponse.granted);
 
-      // If location permission is granted, start location updates
       if (locationPermissionResponse.granted) {
-        initLocationUpdates();
+        await initLocationUpdates();
       }
 
       setIsCheckingPermissions(false);
@@ -73,12 +68,8 @@ export default function CameraScreen() {
     checkAllPermissions();
   }, []);
 
-  // Start location updates if permission is granted
   const initLocationUpdates = async () => {
-    let locationSubscription: Location.LocationSubscription | null = null;
-
     try {
-      // Get initial location
       const initialLocation = await Location.getCurrentPositionAsync({
         accuracy: Location.Accuracy.High,
       });
@@ -90,8 +81,7 @@ export default function CameraScreen() {
       );
       setIsLocationReady(true);
 
-      // Subscribe to location updates
-      locationSubscription = await Location.watchPositionAsync(
+      const locationSubscription = await Location.watchPositionAsync(
         {
           accuracy: Location.Accuracy.High,
           timeInterval: 1000,
@@ -103,22 +93,16 @@ export default function CameraScreen() {
             newLocation.coords.latitude,
             newLocation.coords.longitude
           );
-          setIsLocationReady(true);
         }
       );
+
+      return () => locationSubscription.remove();
     } catch (error) {
-      console.error("Error setting up location:", error);
+      console.error("Location error:", error);
       setIsLocationReady(false);
     }
-
-    return () => {
-      if (locationSubscription) {
-        locationSubscription.remove();
-      }
-    };
   };
 
-  // Update address from coordinates
   const updateAddress = async (latitude: number, longitude: number) => {
     try {
       const [addressResult] = await Location.reverseGeocodeAsync({
@@ -127,84 +111,57 @@ export default function CameraScreen() {
       });
 
       if (addressResult) {
-        const formattedAddress = `${addressResult.street || ""} ${
-          addressResult.name || ""
-        }, ${addressResult.city || ""}, ${addressResult.region || ""}, ${
-          addressResult.country || ""
-        }`.trim();
+        const formattedAddress = [
+          addressResult.street,
+          addressResult.name,
+          addressResult.city,
+          addressResult.region,
+          addressResult.country
+        ].filter(Boolean).join(", ");
 
         setAddress(formattedAddress);
       }
     } catch (error) {
-      console.error("Error getting address:", error);
+      console.error("Geocoding error:", error);
     }
   };
 
-  // Handle camera permission request
-  const handleCameraPermission = useCallback(async () => {
-    const result = await requestCameraPermission();
+  const handlePermissionRequest = async (
+    requestFn: () => Promise<any>,
+    permissionName: string,
+    setPermission?: (value: boolean) => void
+  ) => {
+    const result = await requestFn();
+    if (setPermission) setPermission(result.granted);
 
     if (!result.granted) {
       Alert.alert(
-        "Camera Permission Required",
-        "Please enable camera access in your device settings to use this feature.",
+        `${permissionName} Permission Required`,
+        `Please enable ${permissionName.toLowerCase()} access in your device settings.`,
         [{ text: "OK" }]
       );
     }
-  }, [requestCameraPermission]);
+  };
 
-  // Handle storage permission request
-  const handleStoragePermission = useCallback(async () => {
-    const result = await MediaLibrary.requestPermissionsAsync();
-    setStoragePermission(result.granted);
-
-    if (!result.granted) {
-      Alert.alert(
-        "Storage Permission Required",
-        "Please enable storage access in your device settings to save photos.",
-        [{ text: "OK" }]
-      );
-    }
-  }, []);
-
-  // Handle location permission request
-  const handleLocationPermission = useCallback(async () => {
-    const result = await Location.requestForegroundPermissionsAsync();
-    setLocationPermission(result.granted);
-
-    if (result.granted) {
-      initLocationUpdates();
-    } else {
-      Alert.alert(
-        "Location Permission Required",
-        "Please enable location access in your device settings to tag photos with location.",
-        [{ text: "OK" }]
-      );
-    }
-  }, []);
-
-  // Toggle camera facing direction
   const toggleCameraFacing = useCallback(() => {
     setFacing((current) => (current === "back" ? "front" : "back"));
   }, []);
 
-  // Toggle flash mode
   const toggleFlashMode = useCallback(() => {
     setFlashMode((current) => {
-      if (current === "off") return "on";
-      if (current === "on") return "auto";
-      return "off";
+      switch (current) {
+        case "off": return "on";
+        case "on": return "auto";
+        default: return "off";
+      }
     });
   }, []);
 
-  // Take picture function
   const takePicture = useCallback(async () => {
     if (!cameraRef.current || isCapturing) return;
 
     try {
       setIsCapturing(true);
-
-      // Take the photo
       const photo = await cameraRef.current.takePictureAsync({
         quality: 0.8,
         base64: true,
@@ -214,36 +171,23 @@ export default function CameraScreen() {
         throw new Error("Failed to capture photo");
       }
 
-      // Create a unique filename with timestamp
-      const timestamp = new Date().getTime();
+      const timestamp = Date.now();
       const filename = `photo_${timestamp}.jpg`;
       const directory = `${FileSystem.documentDirectory}photos/`;
 
-      // Ensure the directory exists
-      const dirInfo = await FileSystem.getInfoAsync(directory);
-      if (!dirInfo.exists) {
-        await FileSystem.makeDirectoryAsync(directory, { intermediates: true });
-      }
+      await FileSystem.makeDirectoryAsync(directory, { intermediates: true });
 
-      // Save the photo
       const filePath = `${directory}${filename}`;
       await FileSystem.writeAsStringAsync(filePath, photo.base64, {
         encoding: FileSystem.EncodingType.Base64,
       });
 
-      // Prepare location data if available
-      let locationData = null;
-      if (location) {
-        locationData = {
-          latitude: location.coords.latitude,
-          longitude: location.coords.longitude,
-          address: address || null,
-        };
-      }
+      const locationData: LocationData | null = location ? {
+        latitude: location.coords.latitude,
+        longitude: location.coords.longitude,
+        address,
+      } : null;
 
-      console.log(`Photo saved to: ${filePath}`);
-
-      // Navigate to review screen with the photo path and location data
       router.push({
         pathname: `/session/photo-review`,
         params: {
@@ -252,48 +196,48 @@ export default function CameraScreen() {
         },
       });
     } catch (error) {
-      console.error("Error taking picture:", error);
+      console.error("Capture error:", error);
       Alert.alert("Error", "Failed to capture photo. Please try again.");
     } finally {
       setIsCapturing(false);
     }
   }, [isCapturing, location, address]);
 
-  // Show loading indicator while checking permissions
   if (isCheckingPermissions) {
     return (
-      <View
-        style={[styles.container, { backgroundColor: theme.colors.background }]}
-      >
+      <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
         <ActivityIndicator size="large" color={theme.brandColors.primary} />
-        <Text
-          style={[styles.loadingText, { color: theme.colors.textSecondary }]}
-        >
+        <Text style={[styles.loadingText, { color: theme.colors.textSecondary }]}>
           Initializing camera...
         </Text>
       </View>
     );
   }
 
-  // Show camera permission screen if not granted
   if (!cameraPermission?.granted) {
     return (
       <PermissionScreen
         title="Camera Access Required"
         message="We need camera access to take photos. Your photos will remain on your device unless you choose to share them."
-        onRequestPermission={handleCameraPermission}
+        onRequestPermission={() => handlePermissionRequest(
+          requestCameraPermission,
+          "Camera"
+        )}
         theme={theme}
       />
     );
   }
 
-  // Show storage permission screen if not granted
   if (!storagePermission) {
     return (
       <PermissionScreen
         title="Storage Access Required"
         message="We need storage access to save photos to your device."
-        onRequestPermission={handleStoragePermission}
+        onRequestPermission={() => handlePermissionRequest(
+          MediaLibrary.requestPermissionsAsync,
+          "Storage",
+          setStoragePermission
+        )}
         theme={theme}
       />
     );
@@ -317,7 +261,6 @@ export default function CameraScreen() {
           flashMode={flashMode}
         />
 
-        {/* Location permission request banner if needed */}
         {!locationPermission && (
           <View style={styles.permissionBanner}>
             <Text style={styles.permissionBannerText}>
@@ -325,14 +268,17 @@ export default function CameraScreen() {
             </Text>
             <TouchableOpacity
               style={styles.permissionBannerButton}
-              onPress={handleLocationPermission}
+              onPress={() => handlePermissionRequest(
+                Location.requestForegroundPermissionsAsync,
+                "Location",
+                setLocationPermission
+              )}
             >
               <Text style={styles.permissionBannerButtonText}>Enable</Text>
             </TouchableOpacity>
           </View>
         )}
 
-        {/* Location info display */}
         {isLocationReady && location && (
           <View style={styles.locationPreview}>
             <View style={styles.locationContent}>
@@ -356,7 +302,6 @@ export default function CameraScreen() {
   );
 }
 
-// Styles
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -398,7 +343,6 @@ const styles = StyleSheet.create({
     opacity: 0.8,
     marginTop: 2,
   },
-  // Permission request banner
   permissionBanner: {
     position: "absolute",
     top: 100,

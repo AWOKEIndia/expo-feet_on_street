@@ -4,8 +4,8 @@ import { ThemedText } from "@/components/ThemedText";
 
 export default function AttendanceScreen() {
   return (
-    <View>
-      <ThemedText>attendance</ThemedText>
+    <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+      <ThemedText>Attendance & Leaves</ThemedText>
     </View>
   );
 }
