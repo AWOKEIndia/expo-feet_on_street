@@ -18,12 +18,11 @@ import {
   Alert,
   Dimensions,
   Image,
-  PanResponder,
   StatusBar,
   StyleSheet,
   Text,
   TouchableOpacity,
-  View,
+  View
 } from "react-native";
 
 type LocationData = {
@@ -214,6 +213,8 @@ export default function CameraScreen() {
       const photo = await cameraRef.current.takePictureAsync({
         quality: 0.8,
         base64: true,
+        exif: true,
+        skipProcessing: true,
       });
 
       if (!photo?.base64) {
@@ -246,7 +247,6 @@ export default function CameraScreen() {
         pathname: `/session/photo-review`,
         params: {
           path: encodeURIComponent(filePath),
-          location: locationData ? JSON.stringify(locationData) : undefined,
         },
       });
     } catch (error) {
