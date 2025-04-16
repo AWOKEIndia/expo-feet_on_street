@@ -455,11 +455,11 @@ export default function CameraScreen() {
             style={styles.galleryButton}
             onPress={navigateToGallery}
           >
-            <Image
-              source={{ uri: latestPhoto ?? "" }}
+            {latestPhoto &&<Image
+              source={{ uri: latestPhoto }}
               resizeMode="cover"
               style={styles.galleryThumbnail}
-            />
+            />}
           </TouchableOpacity>
 
           {/* Camera capture button */}
