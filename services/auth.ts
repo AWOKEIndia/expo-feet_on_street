@@ -34,7 +34,6 @@ export const authService = {
         `scope=${encodeURIComponent('openid all')}&` +
         `response_type=code`;
 
-      console.log("Auth URL: ", authUrl);
       // Open the browser for authentication
       const result = await WebBrowser.openAuthSessionAsync(
         authUrl,
