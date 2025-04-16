@@ -271,6 +271,16 @@ export default function GalleryScreen() {
           >
             Photos you take will appear here
           </Text>
+          {/* Refresh button */}
+          <TouchableOpacity
+            style={[
+              styles.retryButton,
+              { backgroundColor: theme.colors.buttonPrimary },
+            ]}
+            onPress={onRefresh}
+          >
+            <Text style={{ color: theme.colors.textPrimary }}>Refresh</Text>
+          </TouchableOpacity>
         </View>
       ) : (
         <SectionList
