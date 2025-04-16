@@ -168,7 +168,9 @@ export default function PhotoReviewScreen() {
           onPress={handleClose}
           accessibilityLabel="Close preview"
         >
-          <Ionicons name="close" size={24} color={theme.colors.textPrimary} />
+          <View style={styles.closeButtonInner}>
+            <Ionicons name="close" size={24} color="white" />
+          </View>
         </TouchableOpacity>
       </View>
 
@@ -190,7 +192,7 @@ export default function PhotoReviewScreen() {
             <Ionicons
               name="chevron-back"
               size={30}
-              color={theme.colors.textInverted}
+              color="white"
             />
           </TouchableOpacity>
 
@@ -205,77 +207,54 @@ export default function PhotoReviewScreen() {
             <Ionicons
               name="chevron-forward"
               size={30}
-              color={theme.colors.textInverted}
+              color="white"
             />
           </TouchableOpacity>
         </View>
-      </View>
 
-      {/* File information */}
-      <View
-        style={[
-          styles.infoContainer,
-          { backgroundColor: theme.colors.surfaceSecondary },
-        ]}
-      >
-        <Text style={[styles.infoTitle, { color: theme.colors.textPrimary }]}>
-          Photo Information
-        </Text>
-
-        <View style={styles.infoRow}>
-          <Text
-            style={[styles.infoLabel, { color: theme.colors.textSecondary }]}
-          >
-            Name:
+        {/* File information overlay */}
+        <View style={styles.infoOverlay}>
+          <Text style={[styles.infoTitle, { color: "white" }]}>
+            Details
           </Text>
-          <Text style={[styles.infoValue, { color: theme.colors.textPrimary }]}>
-            {getFileName(photoPaths[currentIndex])}
+
+          <View style={styles.infoRow}>
+            <Text style={[styles.infoLabel, { color: "white" }]}>
+              Name:
+            </Text>
+            <Text style={[styles.infoValue, { color: "white" }]}>
+              {getFileName(photoPaths[currentIndex])}
+            </Text>
+          </View>
+
+          {fileInfo && (
+            <>
+              <View style={styles.infoRow}>
+                <Text style={[styles.infoLabel, { color: "white" }]}>
+                  Size:
+                </Text>
+                <Text style={[styles.infoValue, { color: "white" }]}>
+                  {/* @ts-ignore */}
+                  {formatFileSize(fileInfo.size)}
+                </Text>
+              </View>
+
+              <View style={styles.infoRow}>
+                <Text style={[styles.infoLabel, { color: "white" }]}>
+                  Modified:
+                </Text>
+                <Text style={[styles.infoValue, { color: "white" }]}>
+                  {/* @ts-ignore */}
+                  {formatDate(fileInfo.modificationTime * 1000)}
+                </Text>
+              </View>
+            </>
+          )}
+
+          <Text style={[styles.infoCounter, { color: "rgba(255,255,255,0.7)" }]}>
+            {currentIndex + 1} of {photoPaths.length}
           </Text>
         </View>
-
-        {fileInfo && (
-          <>
-            <View style={styles.infoRow}>
-              <Text
-                style={[
-                  styles.infoLabel,
-                  { color: theme.colors.textSecondary },
-                ]}
-              >
-                Size:
-              </Text>
-              <Text
-                style={[styles.infoValue, { color: theme.colors.textPrimary }]}
-              >
-                {/* @ts-ignore */}
-                {formatFileSize(fileInfo.size)}
-              </Text>
-            </View>
-
-            <View style={styles.infoRow}>
-              <Text
-                style={[
-                  styles.infoLabel,
-                  { color: theme.colors.textSecondary },
-                ]}
-              >
-                Modified:
-              </Text>
-              <Text
-                style={[styles.infoValue, { color: theme.colors.textPrimary }]}
-              >
-                {/* @ts-ignore */}
-                {formatDate(fileInfo.modificationTime * 1000)}
-              </Text>
-            </View>
-          </>
-        )}
-
-        <Text
-          style={[styles.infoCounter, { color: theme.colors.textTertiary }]}
-        >
-          {currentIndex + 1} of {photoPaths.length}
-        </Text>
       </View>
 
       {/* Action buttons */}
@@ -334,11 +313,23 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   header: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
     padding: 16,
-    alignItems: "flex-end",
+    zIndex: 10,
   },
   closeButton: {
-    padding: 8,
+    alignSelf: "flex-start",
+  },
+  closeButtonInner: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(0, 0, 0, 0.7)",
+    justifyContent: "center",
+    alignItems: "center",
   },
   imageContainer: {
     flex: 1,
@@ -365,11 +356,15 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  infoContainer: {
+  infoOverlay: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: "rgba(0,0,0,0.7)",
     padding: 16,
-    borderRadius: 8,
-    margin: 16,
-    marginTop: 0,
+    borderTopLeftRadius: 12,
+    borderTopRightRadius: 12,
   },
   infoTitle: {
     fontSize: 16,
