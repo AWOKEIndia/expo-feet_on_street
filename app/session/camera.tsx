@@ -205,7 +205,7 @@ export default function CameraScreen() {
 
   if (isCheckingPermissions) {
     return (
-      <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+      <View style={[styles.container, { alignItems: "center", justifyContent: "center" }]}>
         <ActivityIndicator size="large" color={theme.brandColors.primary} />
         <Text style={[styles.loadingText, { color: theme.colors.textSecondary }]}>
           Initializing camera...
@@ -243,6 +243,32 @@ export default function CameraScreen() {
     );
   }
 
+  if (!locationPermission) {
+    return (
+      <PermissionScreen
+        title="Location Access Required"
+        message="We need location access to tag photos with your current position."
+        onRequestPermission={() => handlePermissionRequest(
+          Location.requestForegroundPermissionsAsync,
+          "Location",
+          setLocationPermission
+        )}
+        theme={theme}
+      />
+    );
+  }
+
+  if (!location) {
+    return (
+      <View style={[styles.container, { alignItems: "center", justifyContent: "center" }]}>
+        <ActivityIndicator size="large" color={theme.brandColors.primary} />
+        <Text style={[styles.loadingText, { color: theme.colors.textSecondary }]}>
+          Getting location...
+        </Text>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
       <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
@@ -260,24 +286,6 @@ export default function CameraScreen() {
           isCapturing={isCapturing}
           flashMode={flashMode}
         />
-
-        {!locationPermission && (
-          <View style={styles.permissionBanner}>
-            <Text style={styles.permissionBannerText}>
-              Enable location to tag photos with your current position
-            </Text>
-            <TouchableOpacity
-              style={styles.permissionBannerButton}
-              onPress={() => handlePermissionRequest(
-                Location.requestForegroundPermissionsAsync,
-                "Location",
-                setLocationPermission
-              )}
-            >
-              <Text style={styles.permissionBannerButtonText}>Enable</Text>
-            </TouchableOpacity>
-          </View>
-        )}
 
         {isLocationReady && location && (
           <View style={styles.locationPreview}>
@@ -305,7 +313,6 @@ export default function CameraScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "black",
   },
   camera: {
     flex: 1,
