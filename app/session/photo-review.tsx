@@ -1,61 +1,140 @@
 import { useTheme } from "@/contexts/ThemeContext";
 import { Ionicons } from "@expo/vector-icons";
+import * as FileSystem from "expo-file-system";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Image,
   SafeAreaView,
+  Share,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from "react-native";
 
-interface LocationData {
-  latitude: number;
-  longitude: number;
-  address: string | null;
-}
-
 export default function PhotoReviewScreen() {
   const { theme } = useTheme();
-  const { path, location } = useLocalSearchParams<{
-    path: string;
-    location?: string;
-  }>();
+  const { path } = useLocalSearchParams<{ path: string }>();
 
-  const [imageUri, setImageUri] = useState<string | null>(null);
-  const [locationData, setLocationData] = useState<LocationData | null>(null);
+  const [photoPaths, setPhotoPaths] = useState<string[]>([]);
+  const [currentIndex, setCurrentIndex] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
+  const [fileInfo, setFileInfo] = useState<FileSystem.FileInfo | null>(null);
 
   useEffect(() => {
-    const loadImageData = async () => {
+    const loadPhotos = async () => {
       try {
-        if (!path) return;
+        const directory = `${FileSystem.documentDirectory}photos/`;
+        const files = await FileSystem.readDirectoryAsync(directory);
 
-        const decodedPath = decodeURIComponent(path);
-        setImageUri(decodedPath);
+        const photoPaths = files.map((file) => `${directory}${file}`);
+        setPhotoPaths(photoPaths);
 
-        if (location) {
-          try {
-            const parsedLocation = JSON.parse(location) as LocationData;
-            setLocationData(parsedLocation);
-          } catch (error) {
-            console.error("Failed to parse location data:", error);
-          }
+        // Set the initial photo index if a specific path is provided
+        if (path) {
+          const initialIndex = photoPaths.findIndex(
+            (photo) => photo === decodeURIComponent(path)
+          );
+          setCurrentIndex(initialIndex >= 0 ? initialIndex : 0);
         }
       } catch (error) {
-        console.error("Failed to load image:", error);
+        console.error("Failed to load photos:", error);
       } finally {
         setIsLoading(false);
       }
     };
 
-    loadImageData();
-  }, [path, location]);
+    loadPhotos();
+  }, [path]);
+
+  useEffect(() => {
+    const getFileInformation = async () => {
+      if (photoPaths.length > 0) {
+        const info = await FileSystem.getInfoAsync(photoPaths[currentIndex]);
+        setFileInfo(info);
+      }
+    };
+
+    getFileInformation();
+  }, [photoPaths, currentIndex]);
+
+  const getFileName = (filePath: string) => {
+    return filePath.split("/").pop() || "Unknown";
+  };
+
+  const formatFileSize = (bytes: number) => {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
+
+  const formatDate = (timestamp: number) => {
+    const date = new Date(timestamp);
+    return date.toLocaleString();
+  };
 
   const handleClose = () => router.back();
+
+  const handleGoToGallery = () => router.push("/gallery");
+
+  const handleShare = async () => {
+    try {
+      await Share.share({
+        url: photoPaths[currentIndex],
+      });
+    } catch (error) {
+      console.error("Error sharing photo:", error);
+    }
+  };
+
+  const handleDelete = () => {
+    Alert.alert("Delete Photo", "Are you sure you want to delete this photo?", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Delete",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            await FileSystem.deleteAsync(photoPaths[currentIndex]);
+
+            // Update photo array
+            const updatedPaths = photoPaths.filter(
+              (_, index) => index !== currentIndex
+            );
+            setPhotoPaths(updatedPaths);
+
+            if (updatedPaths.length === 0) {
+              // No more photos, go back
+              handleClose();
+            } else {
+              // Move to the next photo, or previous if we're at the end
+              setCurrentIndex((prev) =>
+                prev >= updatedPaths.length ? updatedPaths.length - 1 : prev
+              );
+            }
+          } catch (error) {
+            console.error("Failed to delete photo:", error);
+            Alert.alert("Error", "Failed to delete this photo");
+          }
+        },
+      },
+    ]);
+  };
+
+  const handlePrevious = () => {
+    if (currentIndex > 0) {
+      setCurrentIndex(currentIndex - 1);
+    }
+  };
+
+  const handleNext = () => {
+    if (currentIndex < photoPaths.length - 1) {
+      setCurrentIndex(currentIndex + 1);
+    }
+  };
 
   if (isLoading) {
     return (
@@ -67,13 +146,13 @@ export default function PhotoReviewScreen() {
     );
   }
 
-  if (!imageUri) {
+  if (photoPaths.length === 0) {
     return (
       <SafeAreaView
         style={[styles.container, { backgroundColor: theme.colors.background }]}
       >
         <Text style={{ color: theme.colors.textPrimary }}>
-          Failed to load image
+          No photos available
         </Text>
       </SafeAreaView>
     );
@@ -95,39 +174,156 @@ export default function PhotoReviewScreen() {
 
       <View style={styles.imageContainer}>
         <Image
-          source={{ uri: imageUri }}
+          source={{ uri: photoPaths[currentIndex] }}
           style={styles.image}
           resizeMode="contain"
           accessibilityLabel="Captured photo"
         />
 
-        {locationData && (
-          <View style={styles.locationOverlay}>
-            <View style={styles.locationContent}>
-              <Ionicons
-                name="location"
-                size={20}
-                color="white"
-                accessibilityLabel="Location icon"
-              />
-              <View style={styles.locationTextContainer}>
-                <Text style={styles.coordinatesText}>
-                  {locationData.latitude.toFixed(6)},{" "}
-                  {locationData.longitude.toFixed(6)}
-                </Text>
-                {locationData.address && (
-                  <Text
-                    style={styles.addressText}
-                    numberOfLines={2}
-                    ellipsizeMode="tail"
-                  >
-                    {locationData.address}
-                  </Text>
-                )}
-              </View>
+        {/* Navigation controls */}
+        <View style={styles.navigationControls}>
+          <TouchableOpacity
+            style={[styles.navButton, { opacity: currentIndex > 0 ? 1 : 0.5 }]}
+            onPress={handlePrevious}
+            disabled={currentIndex === 0}
+          >
+            <Ionicons
+              name="chevron-back"
+              size={30}
+              color={theme.colors.textInverted}
+            />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[
+              styles.navButton,
+              { opacity: currentIndex < photoPaths.length - 1 ? 1 : 0.5 },
+            ]}
+            onPress={handleNext}
+            disabled={currentIndex === photoPaths.length - 1}
+          >
+            <Ionicons
+              name="chevron-forward"
+              size={30}
+              color={theme.colors.textInverted}
+            />
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {/* File information */}
+      <View
+        style={[
+          styles.infoContainer,
+          { backgroundColor: theme.colors.surfaceSecondary },
+        ]}
+      >
+        <Text style={[styles.infoTitle, { color: theme.colors.textPrimary }]}>
+          Photo Information
+        </Text>
+
+        <View style={styles.infoRow}>
+          <Text
+            style={[styles.infoLabel, { color: theme.colors.textSecondary }]}
+          >
+            Name:
+          </Text>
+          <Text style={[styles.infoValue, { color: theme.colors.textPrimary }]}>
+            {getFileName(photoPaths[currentIndex])}
+          </Text>
+        </View>
+
+        {fileInfo && (
+          <>
+            <View style={styles.infoRow}>
+              <Text
+                style={[
+                  styles.infoLabel,
+                  { color: theme.colors.textSecondary },
+                ]}
+              >
+                Size:
+              </Text>
+              <Text
+                style={[styles.infoValue, { color: theme.colors.textPrimary }]}
+              >
+                {/* @ts-ignore */}
+                {formatFileSize(fileInfo.size)}
+              </Text>
             </View>
-          </View>
+
+            <View style={styles.infoRow}>
+              <Text
+                style={[
+                  styles.infoLabel,
+                  { color: theme.colors.textSecondary },
+                ]}
+              >
+                Modified:
+              </Text>
+              <Text
+                style={[styles.infoValue, { color: theme.colors.textPrimary }]}
+              >
+                {/* @ts-ignore */}
+                {formatDate(fileInfo.modificationTime * 1000)}
+              </Text>
+            </View>
+          </>
         )}
+
+        <Text
+          style={[styles.infoCounter, { color: theme.colors.textTertiary }]}
+        >
+          {currentIndex + 1} of {photoPaths.length}
+        </Text>
+      </View>
+
+      {/* Action buttons */}
+      <View style={styles.actionContainer}>
+        <TouchableOpacity
+          style={[
+            styles.actionButton,
+            { backgroundColor: theme.colors.buttonSecondary },
+          ]}
+          onPress={handleGoToGallery}
+        >
+          <Ionicons name="grid" size={22} color={theme.colors.textPrimary} />
+          <Text
+            style={[styles.actionText, { color: theme.colors.textPrimary }]}
+          >
+            Gallery
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[
+            styles.actionButton,
+            { backgroundColor: theme.colors.buttonSecondary },
+          ]}
+          onPress={handleShare}
+        >
+          <Ionicons
+            name="share-outline"
+            size={22}
+            color={theme.colors.textPrimary}
+          />
+          <Text
+            style={[styles.actionText, { color: theme.colors.textPrimary }]}
+          >
+            Share
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[
+            styles.actionButton,
+            { backgroundColor: theme.colors.buttonError },
+          ]}
+          onPress={handleDelete}
+        >
+          <Ionicons name="trash-outline" size={22} color="white" />
+          <Text style={[styles.actionText, { color: "white" }]}>Delete</Text>
+        </TouchableOpacity>
       </View>
     </SafeAreaView>
   );
@@ -142,7 +338,7 @@ const styles = StyleSheet.create({
     alignItems: "flex-end",
   },
   closeButton: {
-    padding: 4,
+    padding: 8,
   },
   imageContainer: {
     flex: 1,
@@ -152,31 +348,65 @@ const styles = StyleSheet.create({
     flex: 1,
     width: "100%",
   },
-  locationOverlay: {
+  navigationControls: {
     position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    padding: 16,
-    backgroundColor: "rgba(0, 0, 0, 0.7)",
-  },
-  locationContent: {
     flexDirection: "row",
+    justifyContent: "space-between",
+    width: "100%",
+    top: "50%",
+    paddingHorizontal: 10,
+    transform: [{ translateY: -25 }],
+  },
+  navButton: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: "rgba(0,0,0,0.3)",
+    justifyContent: "center",
     alignItems: "center",
   },
-  locationTextContainer: {
-    marginLeft: 8,
-    flex: 1,
+  infoContainer: {
+    padding: 16,
+    borderRadius: 8,
+    margin: 16,
+    marginTop: 0,
   },
-  coordinatesText: {
-    color: "white",
-    fontSize: 14,
+  infoTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    marginBottom: 12,
+  },
+  infoRow: {
+    flexDirection: "row",
+    marginBottom: 8,
+  },
+  infoLabel: {
+    width: 80,
     fontWeight: "500",
   },
-  addressText: {
-    color: "white",
+  infoValue: {
+    flex: 1,
+  },
+  infoCounter: {
+    textAlign: "center",
+    marginTop: 8,
     fontSize: 12,
-    opacity: 0.8,
-    marginTop: 2,
+  },
+  actionContainer: {
+    flexDirection: "row",
+    justifyContent: "space-around",
+    padding: 16,
+  },
+  actionButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    justifyContent: "center",
+  },
+  actionText: {
+    marginLeft: 8,
+    fontWeight: "500",
   },
 });
