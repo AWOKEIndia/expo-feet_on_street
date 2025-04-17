@@ -86,19 +86,19 @@ export default function CameraScreen() {
   // Load the latest photo for gallery preview
   const loadLatestPhoto = async () => {
     try {
-      const directory = `${FileSystem.documentDirectory}photos/`;
-      const dirInfo = await FileSystem.getInfoAsync(directory);
+      const album = await MediaLibrary.getAlbumAsync("Feet On Street");
+      if (album) {
+        const assets = await MediaLibrary.getAssetsAsync({
+          album: album.id,
+          first: 1,
+          mediaType: "photo",
+          sortBy: [["creationTime", false]],
+        });
 
-      if (!dirInfo.exists) {
-        await FileSystem.makeDirectoryAsync(directory, { intermediates: true });
-        return;
-      }
-
-      const files = await FileSystem.readDirectoryAsync(directory);
-      if (files.length > 0) {
-        // Sort files by name (which contains timestamp) to get the latest
-        files.sort().reverse();
-        setLatestPhoto(`${directory}${files[0]}`);
+        if (assets.assets.length > 0) {
+          setLatestPhoto(assets.assets[0].uri);
+          return;
+        }
       }
     } catch (error) {
       console.error("Failed to load latest photo:", error);
@@ -231,7 +231,11 @@ export default function CameraScreen() {
       // Manipulate photo
       manipulatedUri = await PhotoManipulator.printText(photo.uri, [
         {
-          text: `${address || "Unknown"} \n${location?.coords.latitude?.toFixed(6)}, ${location?.coords.longitude?.toFixed(6)} \n${photo.exif?.Make?.toUpperCase() || "Unknown"} ${photo.exif?.Model || "Unknown"}`,
+          text: `${address || "Unknown"} \n${location?.coords.latitude?.toFixed(
+            6
+          )}, ${location?.coords.longitude?.toFixed(6)} \n${
+            photo.exif?.Make?.toUpperCase() || "Unknown"
+          } ${photo.exif?.Model || "Unknown"}`,
           position: {
             x: 0,
             y: photo.height - photo.height * 0.1,
@@ -474,12 +478,16 @@ export default function CameraScreen() {
             style={styles.galleryButton}
             onPress={navigateToGallery}
           >
-            {latestPhoto && (
+            {latestPhoto ? (
               <Image
                 source={{ uri: latestPhoto }}
                 resizeMode="cover"
                 style={styles.galleryThumbnail}
               />
+            ) : (
+              <View style={[styles.galleryThumbnail, styles.emptyThumbnail]}>
+                <Ionicons name="images-outline" size={24} color="white" />
+              </View>
             )}
           </TouchableOpacity>
 
@@ -594,7 +602,11 @@ const styles = StyleSheet.create({
   galleryThumbnail: {
     width: "100%",
     height: "100%",
-    backgroundColor: "black",
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+  },
+  emptyThumbnail: {
+    justifyContent: "center",
+    alignItems: "center",
   },
   locationPreview: {
     position: "absolute",
