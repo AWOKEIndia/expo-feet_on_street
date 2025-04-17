@@ -1,6 +1,6 @@
 import { useTheme } from "@/contexts/ThemeContext";
 import { Ionicons } from "@expo/vector-icons";
-import * as FileSystem from "expo-file-system";
+import * as MediaLibrary from "expo-media-library";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
@@ -19,24 +19,31 @@ export default function PhotoReviewScreen() {
   const { theme } = useTheme();
   const { path } = useLocalSearchParams<{ path: string }>();
 
-  const [photoPaths, setPhotoPaths] = useState<string[]>([]);
+  const [photoAssets, setPhotoAssets] = useState<MediaLibrary.Asset[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
-  const [fileInfo, setFileInfo] = useState<FileSystem.FileInfo | null>(null);
 
   useEffect(() => {
     const loadPhotos = async () => {
+      setIsLoading(true);
       try {
-        const directory = `${FileSystem.documentDirectory}photos/`;
-        const files = await FileSystem.readDirectoryAsync(directory);
-
-        const photoPaths = files.map((file) => `${directory}${file}`);
-        setPhotoPaths(photoPaths);
+        const album = await MediaLibrary.getAlbumAsync("Feet On Street");
+        if (!album) {
+          setPhotoAssets([]);
+          return;
+        }
+        const assetsResponse = await MediaLibrary.getAssetsAsync({
+          album: album.id,
+          mediaType: "photo",
+          sortBy: [["modificationTime", true]],
+        });
+        const assets = assetsResponse.assets;
+        setPhotoAssets(assets);
 
         // Set the initial photo index if a specific path is provided
         if (path) {
-          const initialIndex = photoPaths.findIndex(
-            (photo) => photo === decodeURIComponent(path)
+          const initialIndex = assets.findIndex(
+            (asset) => asset.uri === decodeURIComponent(path)
           );
           setCurrentIndex(initialIndex >= 0 ? initialIndex : 0);
         }
@@ -50,26 +57,7 @@ export default function PhotoReviewScreen() {
     loadPhotos();
   }, [path]);
 
-  useEffect(() => {
-    const getFileInformation = async () => {
-      if (photoPaths.length > 0) {
-        const info = await FileSystem.getInfoAsync(photoPaths[currentIndex]);
-        setFileInfo(info);
-      }
-    };
-
-    getFileInformation();
-  }, [photoPaths, currentIndex]);
-
-  const getFileName = (filePath: string) => {
-    return filePath.split("/").pop() || "Unknown";
-  };
-
-  const formatFileSize = (bytes: number) => {
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-  };
+  const getFileName = (asset: MediaLibrary.Asset) => asset.filename || "Unknown";
 
   const formatDate = (timestamp: number) => {
     const date = new Date(timestamp);
@@ -83,7 +71,7 @@ export default function PhotoReviewScreen() {
   const handleShare = async () => {
     try {
       await Share.share({
-        url: photoPaths[currentIndex],
+        url: photoAssets[currentIndex].uri,
       });
     } catch (error) {
       console.error("Error sharing photo:", error);
@@ -98,21 +86,17 @@ export default function PhotoReviewScreen() {
         style: "destructive",
         onPress: async () => {
           try {
-            await FileSystem.deleteAsync(photoPaths[currentIndex]);
-
-            // Update photo array
-            const updatedPaths = photoPaths.filter(
+            await MediaLibrary.deleteAssetsAsync([photoAssets[currentIndex].id]);
+            const updatedAssets = photoAssets.filter(
               (_, index) => index !== currentIndex
             );
-            setPhotoPaths(updatedPaths);
+            setPhotoAssets(updatedAssets);
 
-            if (updatedPaths.length === 0) {
-              // No more photos, go back
+            if (updatedAssets.length === 0) {
               handleClose();
             } else {
-              // Move to the next photo, or previous if we're at the end
               setCurrentIndex((prev) =>
-                prev >= updatedPaths.length ? updatedPaths.length - 1 : prev
+                prev >= updatedAssets.length ? updatedAssets.length - 1 : prev
               );
             }
           } catch (error) {
@@ -131,7 +115,7 @@ export default function PhotoReviewScreen() {
   };
 
   const handleNext = () => {
-    if (currentIndex < photoPaths.length - 1) {
+    if (currentIndex < photoAssets.length - 1) {
       setCurrentIndex(currentIndex + 1);
     }
   };
@@ -146,7 +130,7 @@ export default function PhotoReviewScreen() {
     );
   }
 
-  if (photoPaths.length === 0) {
+  if (photoAssets.length === 0) {
     return (
       <SafeAreaView
         style={[styles.container, { backgroundColor: theme.colors.background }]}
@@ -157,6 +141,8 @@ export default function PhotoReviewScreen() {
       </SafeAreaView>
     );
   }
+
+  const currentAsset = photoAssets[currentIndex];
 
   return (
     <SafeAreaView
@@ -176,7 +162,7 @@ export default function PhotoReviewScreen() {
 
       <View style={styles.imageContainer}>
         <Image
-          source={{ uri: photoPaths[currentIndex] }}
+          source={{ uri: currentAsset.uri }}
           style={styles.image}
           resizeMode="contain"
           accessibilityLabel="Captured photo"
@@ -189,70 +175,43 @@ export default function PhotoReviewScreen() {
             onPress={handlePrevious}
             disabled={currentIndex === 0}
           >
-            <Ionicons
-              name="chevron-back"
-              size={30}
-              color="white"
-            />
+            <Ionicons name="chevron-back" size={30} color="white" />
           </TouchableOpacity>
 
           <TouchableOpacity
             style={[
               styles.navButton,
-              { opacity: currentIndex < photoPaths.length - 1 ? 1 : 0.5 },
+              { opacity: currentIndex < photoAssets.length - 1 ? 1 : 0.5 },
             ]}
             onPress={handleNext}
-            disabled={currentIndex === photoPaths.length - 1}
+            disabled={currentIndex === photoAssets.length - 1}
           >
-            <Ionicons
-              name="chevron-forward"
-              size={30}
-              color="white"
-            />
+            <Ionicons name="chevron-forward" size={30} color="white" />
           </TouchableOpacity>
         </View>
 
         {/* File information overlay */}
         <View style={styles.infoOverlay}>
-          <Text style={[styles.infoTitle, { color: "white" }]}>
-            Details
-          </Text>
+          <Text style={[styles.infoTitle, { color: "white" }]}>Details</Text>
 
           <View style={styles.infoRow}>
-            <Text style={[styles.infoLabel, { color: "white" }]}>
-              Name:
-            </Text>
+            <Text style={[styles.infoLabel, { color: "white" }]}>Name:</Text>
             <Text style={[styles.infoValue, { color: "white" }]}>
-              {getFileName(photoPaths[currentIndex])}
+              {getFileName(currentAsset)}
             </Text>
           </View>
 
-          {fileInfo && (
-            <>
-              <View style={styles.infoRow}>
-                <Text style={[styles.infoLabel, { color: "white" }]}>
-                  Size:
-                </Text>
-                <Text style={[styles.infoValue, { color: "white" }]}>
-                  {/* @ts-ignore */}
-                  {formatFileSize(fileInfo.size)}
-                </Text>
-              </View>
-
-              <View style={styles.infoRow}>
-                <Text style={[styles.infoLabel, { color: "white" }]}>
-                  Modified:
-                </Text>
-                <Text style={[styles.infoValue, { color: "white" }]}>
-                  {/* @ts-ignore */}
-                  {formatDate(fileInfo.modificationTime * 1000)}
-                </Text>
-              </View>
-            </>
-          )}
+          <View style={styles.infoRow}>
+            <Text style={[styles.infoLabel, { color: "white" }]}>
+              Modified:
+            </Text>
+            <Text style={[styles.infoValue, { color: "white" }]}>
+              {formatDate(currentAsset.modificationTime)}
+            </Text>
+          </View>
 
           <Text style={[styles.infoCounter, { color: "rgba(255,255,255,0.7)" }]}>
-            {currentIndex + 1} of {photoPaths.length}
+            {currentIndex + 1} of {photoAssets.length}
           </Text>
         </View>
       </View>
@@ -267,9 +226,7 @@ export default function PhotoReviewScreen() {
           onPress={handleGoToGallery}
         >
           <Ionicons name="grid" size={22} color={theme.colors.textPrimary} />
-          <Text
-            style={[styles.actionText, { color: theme.colors.textPrimary }]}
-          >
+          <Text style={[styles.actionText, { color: theme.colors.textPrimary }]}>
             Gallery
           </Text>
         </TouchableOpacity>
@@ -286,9 +243,7 @@ export default function PhotoReviewScreen() {
             size={22}
             color={theme.colors.textPrimary}
           />
-          <Text
-            style={[styles.actionText, { color: theme.colors.textPrimary }]}
-          >
+          <Text style={[styles.actionText, { color: theme.colors.textPrimary }]}>
             Share
           </Text>
         </TouchableOpacity>
