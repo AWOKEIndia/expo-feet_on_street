@@ -21,6 +21,8 @@ import {
   View,
   RefreshControl,
   Dimensions,
+  Alert,
+  Share,
 } from "react-native";
 
 type PhotoItem = MediaLibrary.Asset;
@@ -41,6 +43,8 @@ export default function GalleryScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedPhotos, setSelectedPhotos] = useState<Set<string>>(new Set());
 
   const loadPhotos = useCallback(async () => {
     try {
@@ -164,28 +168,110 @@ export default function GalleryScreen() {
     return sections;
   };
 
+  const toggleSelectionMode = useCallback((initialPhoto?: PhotoItem) => {
+    setSelectionMode(true);
+    if (initialPhoto) {
+      setSelectedPhotos(new Set([initialPhoto.id]));
+    } else {
+      setSelectedPhotos(new Set());
+    }
+  }, []);
+
+  const exitSelectionMode = useCallback(() => {
+    setSelectionMode(false);
+    setSelectedPhotos(new Set());
+  }, []);
+
+  const togglePhotoSelection = useCallback((photo: PhotoItem) => {
+    setSelectedPhotos((prev) => {
+      const newSelection = new Set(prev);
+      if (newSelection.has(photo.id)) {
+        newSelection.delete(photo.id);
+      } else {
+        newSelection.add(photo.id);
+      }
+      return newSelection;
+    });
+  }, []);
+
+  const handlePhotoPress = useCallback((photo: PhotoItem) => {
+    if (selectionMode) {
+      togglePhotoSelection(photo);
+    } else {
+      router.push({
+        pathname: `/session/photo-review`,
+        params: { path: encodeURIComponent(photo.uri) },
+      });
+    }
+  }, [selectionMode, togglePhotoSelection]);
+
+  const handlePhotoLongPress = useCallback((photo: PhotoItem) => {
+    if (!selectionMode) {
+      toggleSelectionMode(photo);
+    }
+  }, [selectionMode, toggleSelectionMode]);
+
+  const handleBulkDelete = useCallback(() => {
+    if (selectedPhotos.size === 0) return;
+
+    Alert.alert(
+      "Delete Photos",
+      `Are you sure you want to delete ${selectedPhotos.size} photo${selectedPhotos.size > 1 ? "s" : ""}?`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await MediaLibrary.deleteAssetsAsync(Array.from(selectedPhotos));
+              exitSelectionMode();
+              onRefresh();
+            } catch (error) {
+              console.error("Failed to delete photos:", error);
+              Alert.alert("Error", "Failed to delete the selected photos");
+            }
+          },
+        },
+      ]
+    );
+  }, [selectedPhotos, exitSelectionMode, onRefresh]);
+
   const renderPhotoRow = ({ item }: { item: PhotoItem[] }) => (
     <View style={styles.row}>
-      {item.map((photo, index) => (
+      {item.map((photo) => (
         <TouchableOpacity
-          key={photo.uri}
-          style={styles.imageContainer}
-          onPress={() =>
-            router.push({
-              pathname: `/session/photo-review`,
-              params: { path: encodeURIComponent(photo.uri) },
-            })
-          }
+          key={photo.id}
+          style={[
+            styles.imageContainer,
+            selectedPhotos.has(photo.id) && styles.selectedImageContainer,
+          ]}
+          onPress={() => handlePhotoPress(photo)}
+          onLongPress={() => handlePhotoLongPress(photo)}
           activeOpacity={0.7}
+          delayLongPress={300}
         >
           <Image
             source={{ uri: photo.uri }}
             style={styles.image}
             resizeMode="cover"
           />
+          {selectionMode && (
+            <View
+              style={[
+                styles.selectionOverlay,
+                selectedPhotos.has(photo.id) ? styles.selectedOverlay : null,
+              ]}
+            >
+              {selectedPhotos.has(photo.id) && (
+                <View style={styles.checkmark}>
+                  <Ionicons name="checkmark-circle" size={24} color="white" />
+                </View>
+              )}
+            </View>
+          )}
         </TouchableOpacity>
       ))}
-      {/* Add empty placeholders to maintain grid layout */}
       {Array(NUM_COLUMNS - item.length)
         .fill(0)
         .map((_, index) => (
@@ -211,6 +297,48 @@ export default function GalleryScreen() {
     <SafeAreaView
       style={[styles.container, { backgroundColor: theme.colors.background }]}
     >
+      {selectionMode && (
+        <View
+          style={[
+            styles.selectionBar,
+            { backgroundColor: theme.colors.buttonSecondary },
+          ]}
+        >
+          <TouchableOpacity
+            style={styles.selectionBarButton}
+            onPress={exitSelectionMode}
+          >
+            <Ionicons name="close" size={24} color={theme.colors.textPrimary} />
+          </TouchableOpacity>
+
+          <Text
+            style={[
+              styles.selectionCount,
+              { color: theme.colors.textPrimary },
+            ]}
+          >
+            {selectedPhotos.size} selected
+          </Text>
+
+          <View style={styles.selectionActions}>
+            <TouchableOpacity
+              style={[
+                styles.actionIcon,
+                { opacity: selectedPhotos.size > 0 ? 1 : 0.5 },
+              ]}
+              onPress={handleBulkDelete}
+              disabled={selectedPhotos.size === 0}
+            >
+              <Ionicons
+                name="trash-outline"
+                size={22}
+                color={theme.colors.buttonError}
+              />
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+
       {error ? (
         <View style={styles.messageContainer}>
           <Text style={{ color: theme.colors.chartError }}>{error}</Text>
@@ -242,7 +370,6 @@ export default function GalleryScreen() {
           >
             Photos you take will appear here
           </Text>
-          {/* Refresh button */}
           <TouchableOpacity
             style={[
               styles.retryButton,
@@ -351,5 +478,47 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     borderRadius: 8,
     marginTop: 16,
+  },
+  selectedImageContainer: {
+    borderWidth: 2,
+    borderColor: "#3498db",
+  },
+  selectionOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(0,0,0,0.3)",
+    justifyContent: "flex-end",
+    alignItems: "flex-end",
+  },
+  selectedOverlay: {
+    backgroundColor: "rgba(52, 152, 219, 0.4)",
+  },
+  checkmark: {
+    margin: 6,
+  },
+  selectionBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(0,0,0,0.1)",
+  },
+  selectionBarButton: {
+    padding: 8,
+  },
+  selectionCount: {
+    fontSize: 16,
+    fontWeight: "500",
+  },
+  selectionActions: {
+    flexDirection: "row",
+  },
+  actionIcon: {
+    padding: 8,
+    marginLeft: 16,
   },
 });
