@@ -508,6 +508,7 @@ const styles = StyleSheet.create({
   },
   leaveBalanceCard: {
     width: 170,
+    height: 190,
     padding: 16,
     borderRadius: 12,
     marginRight: 12,
@@ -523,13 +524,13 @@ const styles = StyleSheet.create({
   },
   gaugeLabel: {
     position: "absolute",
-    top: 40,
+    top: 78,
   },
   startLabel: {
-    left: -5,
+    left: 0,
   },
   endLabel: {
-    right: -5,
+    right: -2,
   },
   gaugeLabelText: {
     fontSize: 12,
