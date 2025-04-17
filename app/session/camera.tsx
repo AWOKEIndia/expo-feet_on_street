@@ -22,8 +22,10 @@ import {
   StyleSheet,
   Text,
   TouchableOpacity,
-  View
+  View,
 } from "react-native";
+
+import PhotoManipulator from "react-native-photo-manipulator/src/PhotoManipulator";
 
 type LocationData = {
   latitude: number;
@@ -208,9 +210,12 @@ export default function CameraScreen() {
   const takePicture = useCallback(async () => {
     if (!cameraRef.current || isCapturing) return;
 
+    setIsCapturing(true);
+    let photo;
+    let manipulatedUri = null;
+    let photoAsset = null;
     try {
-      setIsCapturing(true);
-      const photo = await cameraRef.current.takePictureAsync({
+      photo = await cameraRef.current.takePictureAsync({
         quality: 0.8,
         base64: true,
         exif: true,
@@ -221,37 +226,51 @@ export default function CameraScreen() {
         throw new Error("Failed to capture photo");
       }
 
-      const timestamp = Date.now();
-      const filename = `photo_${timestamp}.jpg`;
-      const directory = `${FileSystem.documentDirectory}photos/`;
+      const Album = await MediaLibrary.getAlbumAsync("Feet On Street");
 
-      await FileSystem.makeDirectoryAsync(directory, { intermediates: true });
+      // Manipulate photo
+      manipulatedUri = await PhotoManipulator.printText(photo.uri, [
+        {
+          text: `${address || "Unknown"} \n${location?.coords.latitude?.toFixed(6)}, ${location?.coords.longitude?.toFixed(6)} \n${photo.exif?.Make?.toUpperCase() || "Unknown"} ${photo.exif?.Model || "Unknown"}`,
+          position: {
+            x: 0,
+            y: photo.height - photo.height * 0.1,
+          },
+          color: "white",
+          textSize: 68,
+          thickness: 5,
+        },
+      ]);
 
-      const filePath = `${directory}${filename}`;
-      await FileSystem.writeAsStringAsync(filePath, photo.base64, {
-        encoding: FileSystem.EncodingType.Base64,
-      });
+      photoAsset = await MediaLibrary.createAssetAsync(manipulatedUri);
 
-      // Update latest photo thumbnail
-      setLatestPhoto(filePath);
+      if (!Album) {
+        await MediaLibrary.createAlbumAsync("Feet On Street", photoAsset, false);
+      } else {
+        await MediaLibrary.addAssetsToAlbumAsync(photoAsset, Album, false);
+      }
 
-      const locationData: LocationData | null = location
-        ? {
-            latitude: location.coords.latitude,
-            longitude: location.coords.longitude,
-            address,
-          }
-        : null;
+      setLatestPhoto(photoAsset.uri);
 
+      // Delete manipulated file
+      await FileSystem.deleteAsync(manipulatedUri, { idempotent: true });
+      // Delete original photo
+      await FileSystem.deleteAsync(photo.uri, { idempotent: true });
+
+      // Navigate after state update
       router.push({
         pathname: `/session/photo-review`,
         params: {
-          path: encodeURIComponent(filePath),
+          path: encodeURIComponent(photoAsset.uri),
         },
       });
     } catch (error) {
-      console.error("Capture error:", error);
+      console.error("Error saving photo:", error);
       Alert.alert("Error", "Failed to capture photo. Please try again.");
+      // Clean up original photo if manipulation failed
+      if (photo?.uri) {
+        await FileSystem.deleteAsync(photo.uri, { idempotent: true });
+      }
     } finally {
       setIsCapturing(false);
     }
@@ -455,11 +474,13 @@ export default function CameraScreen() {
             style={styles.galleryButton}
             onPress={navigateToGallery}
           >
-            {latestPhoto &&<Image
-              source={{ uri: latestPhoto }}
-              resizeMode="cover"
-              style={styles.galleryThumbnail}
-            />}
+            {latestPhoto && (
+              <Image
+                source={{ uri: latestPhoto }}
+                resizeMode="cover"
+                style={styles.galleryThumbnail}
+              />
+            )}
           </TouchableOpacity>
 
           {/* Camera capture button */}

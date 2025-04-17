@@ -7,7 +7,7 @@ import {
   isToday,
   isYesterday,
 } from "date-fns";
-import * as FileSystem from "expo-file-system";
+import * as MediaLibrary from "expo-media-library";
 import { router } from "expo-router";
 import React, { useEffect, useState, useCallback } from "react";
 import {
@@ -23,10 +23,7 @@ import {
   Dimensions,
 } from "react-native";
 
-type PhotoItem = {
-  uri: string;
-  creationTime: Date;
-};
+type PhotoItem = MediaLibrary.Asset;
 
 type GallerySection = {
   title: string;
@@ -48,46 +45,26 @@ export default function GalleryScreen() {
   const loadPhotos = useCallback(async () => {
     try {
       setError(null);
-      const directory = `${FileSystem.documentDirectory}photos/`;
-      const dirInfo = await FileSystem.getInfoAsync(directory);
-
-      if (!dirInfo.exists) {
-        // Create directory if it doesn't exist
-        await FileSystem.makeDirectoryAsync(directory, { intermediates: true });
+      const album = await MediaLibrary.getAlbumAsync("Feet On Street");
+      if (!album) {
         setSections([]);
         return;
       }
+      const assetsResponse = await MediaLibrary.getAssetsAsync({
+        album: album.id,
+        mediaType: "photo",
+        sortBy: [["modificationTime", false]],
+      });
+      const photoItems = assetsResponse.assets;
 
-      const files = await FileSystem.readDirectoryAsync(directory);
-      const photoFiles = files.filter((file) => file.endsWith(".jpg"));
-
-      if (photoFiles.length === 0) {
+      if (photoItems.length === 0) {
         setSections([]);
         return;
       }
-
-      const photoItems = await Promise.all(
-        photoFiles.map(async (file) => {
-          const uri = `${directory}${file}`;
-          try {
-            return {
-              uri,
-              creationTime: getCreationDateFromFilename(file),
-            };
-          } catch (e) {
-            console.warn(`Could not get info for ${file}`, e);
-            return {
-              uri,
-              creationTime: getCreationDateFromFilename(file),
-              size: 0,
-            };
-          }
-        })
-      );
 
       // Sort by creation time (newest first)
       const sortedPhotos = photoItems.sort(
-        (a, b) => b.creationTime.getTime() - a.creationTime.getTime()
+        (a, b) => (b.creationTime ?? 0) - (a.creationTime ?? 0)
       );
 
       const categorizedPhotos = categorizePhotos(sortedPhotos);
@@ -108,12 +85,6 @@ export default function GalleryScreen() {
     setRefreshing(false);
   }, [loadPhotos]);
 
-  const getCreationDateFromFilename = (filename: string): Date => {
-    // Extract timestamp from filename like "photo_123456789.jpg"
-    const timestamp = parseInt(filename.split("_")[1]?.split(".")[0] || "0");
-    return new Date(timestamp || Date.now());
-  };
-
   const categorizePhotos = (photos: PhotoItem[]): GallerySection[] => {
     const photosMap: Record<string, PhotoItem[]> = {
       today: [],
@@ -124,7 +95,7 @@ export default function GalleryScreen() {
     const olderPhotos: Record<string, PhotoItem[]> = {};
 
     photos.forEach((photo) => {
-      const date = photo.creationTime;
+      const date = new Date(photo.modificationTime);
 
       if (isToday(date)) {
         photosMap.today.push(photo);
