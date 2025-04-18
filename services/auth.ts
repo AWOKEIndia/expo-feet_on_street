@@ -138,15 +138,15 @@ export const authService = {
    */
   async logout(accessToken: string): Promise<void> {
     try {
+      const formData = new FormData();
+      formData.append("token", accessToken);
+
       const response = await fetch(FRAPPE_OAUTH_CONFIG.logoutEndpoint, {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          token: accessToken,
-        }),
+        body: formData,
       });
 
       if (!response.ok) {
