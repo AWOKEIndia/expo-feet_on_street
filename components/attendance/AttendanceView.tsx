@@ -7,12 +7,12 @@ import {
   ActivityIndicator,
   ScrollView,
   RefreshControl,
-  Modal,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Calendar } from "react-native-calendars";
 import dayjs from "dayjs";
 import AttendanceRequestForm from "./AttendanceRequestForm";
+import Modal from "react-native-modal";
 
 interface CalendarEventData {
   [date: string]: string;
@@ -274,14 +274,14 @@ const AttendanceView = ({
           textDisabledColor: theme.colors.textDisabled,
           monthTextColor: theme.colors.textPrimary,
           arrowColor: theme.brandColors.primary,
-          'stylesheet.calendar.header': {
+          "stylesheet.calendar.header": {
             header: {
-              flexDirection: 'row',
-              justifyContent: 'center',
+              flexDirection: "row",
+              justifyContent: "center",
               paddingLeft: 10,
               paddingRight: 10,
               marginTop: 6,
-              alignItems: 'center',
+              alignItems: "center",
               height: 0,
               opacity: 0,
             },
@@ -414,12 +414,6 @@ const AttendanceView = ({
         // Open the form modal when the button is clicked
         onPress={() => setShowRequestForm(true)}
       >
-        <Ionicons
-          name="time-outline"
-          size={20}
-          color={theme.colors.textInverted}
-          style={styles.requestButtonIcon}
-        />
         <Text
           style={[
             styles.requestButtonText,
@@ -478,10 +472,13 @@ const AttendanceView = ({
 
       {/* Modal for the Attendance Request Form */}
       <Modal
-        visible={showRequestForm}
-        animationType="slide"
-        transparent={false}
-        onRequestClose={() => setShowRequestForm(false)}
+        isVisible={showRequestForm}
+        animationIn="slideInRight"
+        animationOut="slideOutRight"
+        backdropOpacity={0.5}
+        style={{ margin: 0, justifyContent: "flex-end" }}
+        onBackdropPress={() => setShowRequestForm(false)}
+        onBackButtonPress={() => setShowRequestForm(false)}
       >
         <AttendanceRequestForm
           onSubmit={handleAttendanceRequestSubmit}
@@ -493,7 +490,7 @@ const AttendanceView = ({
 };
 
 // Import Platform for platform-specific styling
-import { Platform } from 'react-native';
+import { Platform } from "react-native";
 
 const styles = StyleSheet.create({
   mainContainer: {

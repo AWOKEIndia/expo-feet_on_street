@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -9,11 +9,13 @@ import {
   KeyboardAvoidingView,
   Platform,
   Pressable,
-  Modal
-} from 'react-native';
-import { useTheme } from '@/contexts/ThemeContext';
-import { Ionicons } from '@expo/vector-icons';
-import DateTimePicker from '@react-native-community/datetimepicker';
+  Keyboard,
+  BackHandler,
+} from "react-native";
+import { useTheme } from "@/contexts/ThemeContext";
+import { Ionicons } from "@expo/vector-icons";
+import DateTimePicker from "@react-native-community/datetimepicker";
+import { AppState } from "react-native";
 
 interface AttendanceRequestFormProps {
   onSubmit: (data: AttendanceRequestData) => void;
@@ -30,7 +32,10 @@ interface AttendanceRequestData {
   explanation: string;
 }
 
-const AttendanceRequestForm: React.FC<AttendanceRequestFormProps> = ({ onSubmit, onCancel }) => {
+const AttendanceRequestForm: React.FC<AttendanceRequestFormProps> = ({
+  onSubmit,
+  onCancel,
+}) => {
   const { theme, isDark } = useTheme();
 
   const [formData, setFormData] = useState<AttendanceRequestData>({
@@ -38,37 +43,62 @@ const AttendanceRequestForm: React.FC<AttendanceRequestFormProps> = ({ onSubmit,
     toDate: null,
     isHalfDay: false,
     includeHolidays: false,
-    shift: '',
-    reason: '',
-    explanation: ''
+    shift: "",
+    reason: "",
+    explanation: "",
   });
 
   const [showFromDatePicker, setShowFromDatePicker] = useState(false);
   const [showToDatePicker, setShowToDatePicker] = useState(false);
   const [showShiftDropdown, setShowShiftDropdown] = useState(false);
   const [showReasonDropdown, setShowReasonDropdown] = useState(false);
+  const [appState, setAppState] = useState(AppState.currentState);
 
-  const shifts = ['Day', "CFL Day"];
-  const reasons = ['Work From Home', 'On Duty'];
+  // Handle app state changes to properly close date pickers if app goes to background
+  useEffect(() => {
+    const subscription = AppState.addEventListener("change", (nextAppState) => {
+      if (appState === "active" && nextAppState.match(/inactive|background/)) {
+        setShowFromDatePicker(false);
+        setShowToDatePicker(false);
+      }
+      setAppState(nextAppState);
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, [appState]);
+
+  const shifts = ["Day", "CFL Day"];
+  const reasons = ["Work From Home", "On Duty"];
 
   const formatDate = (date: Date | null): string => {
-    if (!date) return '';
-    return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+    if (!date) return "";
+    return date.toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    });
   };
 
-  const handleDateChange = (field: 'fromDate' | 'toDate', selectedDate?: Date) => {
-    if (field === 'fromDate') {
+  const handleDateChange = (
+    field: "fromDate" | "toDate",
+    event: any,
+    selectedDate?: Date
+  ) => {
+    // Always close picker on Android after selection (or cancel)
+    if (Platform.OS === "android") {
       setShowFromDatePicker(false);
-    } else {
       setShowToDatePicker(false);
     }
 
-    if (selectedDate) {
+    // Don't update the date if user canceled (Android returns undefined on cancel)
+    if (event.type === "set" && selectedDate) {
       setFormData({ ...formData, [field]: selectedDate });
     }
   };
 
-  const toggleCheckbox = (field: 'isHalfDay' | 'includeHolidays') => {
+  const toggleCheckbox = (field: "isHalfDay" | "includeHolidays") => {
     setFormData({ ...formData, [field]: !formData[field] });
   };
 
@@ -76,15 +106,69 @@ const AttendanceRequestForm: React.FC<AttendanceRequestFormProps> = ({ onSubmit,
     onSubmit(formData);
   };
 
+  // For handling dropdown outside tap
+  useEffect(() => {
+    if (showShiftDropdown || showReasonDropdown) {
+      // Create listener for touches outside the dropdown
+      const handleOutsideTouch = () => {
+        setShowShiftDropdown(false);
+        setShowReasonDropdown(false);
+      };
+
+      // Use Keyboard API to detect touches outside our components
+      const keyboardListener = Keyboard.addListener(
+        "keyboardDidHide",
+        handleOutsideTouch
+      );
+
+      // Set up touch handler on the entire screen
+      const backHandler = BackHandler.addEventListener(
+        "hardwareBackPress",
+        () => {
+          if (showShiftDropdown || showReasonDropdown) {
+            handleOutsideTouch();
+            return true;
+          }
+          return false;
+        }
+      );
+
+      return () => {
+        keyboardListener.remove();
+        backHandler.remove();
+      };
+    }
+  }, [showShiftDropdown, showReasonDropdown]);
+
+  // Show Android date picker
+  const showAndroidDatePicker = (field: "fromDate" | "toDate") => {
+    // Close any open dropdown first
+    setShowShiftDropdown(false);
+    setShowReasonDropdown(false);
+
+    if (field === "fromDate") {
+      setShowFromDatePicker(true);
+      setShowToDatePicker(false);
+    } else {
+      setShowToDatePicker(true);
+      setShowFromDatePicker(false);
+    }
+  };
+
   return (
     <KeyboardAvoidingView
       style={[styles.container, { backgroundColor: theme.colors.background }]}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
-      <View style={[styles.header, {
-        borderBottomColor: theme.colors.divider,
-        backgroundColor: theme.colors.surfacePrimary
-      }]}>
+      <View
+        style={[
+          styles.header,
+          {
+            borderBottomColor: theme.colors.divider,
+            backgroundColor: theme.colors.surfacePrimary,
+          },
+        ]}
+      >
         <TouchableOpacity style={styles.backButton} onPress={onCancel}>
           <Ionicons
             name="chevron-back"
@@ -96,37 +180,63 @@ const AttendanceRequestForm: React.FC<AttendanceRequestFormProps> = ({ onSubmit,
           New Attendance Request
         </Text>
       </View>
-
-      <ScrollView style={[styles.form, { backgroundColor: theme.colors.background }]}>
+      <ScrollView
+        style={[styles.form, { backgroundColor: theme.colors.background }]}
+      >
         <View style={styles.fieldContainer}>
           <Text style={[styles.label, { color: theme.colors.textPrimary }]}>
             From Date <Text style={{ color: theme.statusColors.error }}>*</Text>
           </Text>
           <TouchableOpacity
-            style={[styles.input, {
-              backgroundColor: theme.colors.inputBackground,
-              borderColor: theme.colors.inputBorder,
-            }]}
-            onPress={() => setShowFromDatePicker(true)}
+            style={[
+              styles.input,
+              {
+                backgroundColor: theme.colors.inputBackground,
+                borderColor: theme.colors.inputBorder,
+              },
+            ]}
+            onPress={() => showAndroidDatePicker("fromDate")}
           >
             <Text
               style={[
                 styles.inputText,
-                { color: theme.colors.textPrimary },
-                !formData.fromDate && { color: theme.colors.inputPlaceholder }
+                {
+                  color: formData.fromDate
+                    ? theme.colors.textPrimary
+                    : theme.colors.inputPlaceholder,
+                },
               ]}
             >
-              {formData.fromDate ? formatDate(formData.fromDate) : 'Select Date'}
+              {formData.fromDate
+                ? formatDate(formData.fromDate)
+                : "Select Date"}
             </Text>
+            <Ionicons
+              name="calendar-outline"
+              size={20}
+              color={theme.colors.iconSecondary}
+              style={styles.calendarIcon}
+            />
           </TouchableOpacity>
+
           {showFromDatePicker && (
             <DateTimePicker
+              testID="fromDatePicker"
               value={formData.fromDate || new Date()}
               mode="date"
-              display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-              onChange={(event, date) => handleDateChange('fromDate', date)}
+              display="default" // Use default for Android (calendar)
+              onChange={(event, date) =>
+                handleDateChange("fromDate", event, date)
+              }
               minimumDate={new Date()}
-              themeVariant={isDark ? 'dark' : 'light'}
+              // Android styling props
+              themeVariant={isDark ? "dark" : "light"}
+              positiveButtonLabel="OK"
+              negativeButtonLabel="Cancel"
+              // These colors will be used for the calendar header and selected date
+              accentColor={
+                isDark ? theme.colors.textAccent : theme.brandColors.primary
+              }
             />
           )}
         </View>
@@ -136,48 +246,76 @@ const AttendanceRequestForm: React.FC<AttendanceRequestFormProps> = ({ onSubmit,
             To Date <Text style={{ color: theme.statusColors.error }}>*</Text>
           </Text>
           <TouchableOpacity
-            style={[styles.input, {
-              backgroundColor: theme.colors.inputBackground,
-              borderColor: theme.colors.inputBorder,
-            }]}
-            onPress={() => setShowToDatePicker(true)}
+            style={[
+              styles.input,
+              {
+                backgroundColor: theme.colors.inputBackground,
+                borderColor: theme.colors.inputBorder,
+              },
+            ]}
+            onPress={() => showAndroidDatePicker("toDate")}
           >
             <Text
               style={[
                 styles.inputText,
-                { color: theme.colors.textPrimary },
-                !formData.toDate && { color: theme.colors.inputPlaceholder }
+                {
+                  color: formData.toDate
+                    ? theme.colors.textPrimary
+                    : theme.colors.inputPlaceholder,
+                },
               ]}
             >
-              {formData.toDate ? formatDate(formData.toDate) : 'Select Date'}
+              {formData.toDate ? formatDate(formData.toDate) : "Select Date"}
             </Text>
+            <Ionicons
+              name="calendar-outline"
+              size={20}
+              color={theme.colors.iconSecondary}
+              style={styles.calendarIcon}
+            />
           </TouchableOpacity>
+
           {showToDatePicker && (
             <DateTimePicker
-              value={formData.toDate || (formData.fromDate || new Date())}
+              testID="toDatePicker"
+              value={formData.toDate || formData.fromDate || new Date()}
               mode="date"
-              display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-              onChange={(event, date) => handleDateChange('toDate', date)}
+              display="default" // Use default for Android (calendar)
+              onChange={(event, date) =>
+                handleDateChange("toDate", event, date)
+              }
               minimumDate={formData.fromDate || new Date()}
-              themeVariant={isDark ? 'dark' : 'light'}
+              // Android styling props
+              themeVariant={isDark ? "dark" : "light"}
+              positiveButtonLabel="OK"
+              negativeButtonLabel="Cancel"
+              // These colors will be used for the calendar header and selected date
+              accentColor={
+                isDark ? theme.colors.textAccent : theme.brandColors.primary
+              }
             />
           )}
         </View>
 
         <View style={styles.checkboxRow}>
-          <Pressable onPress={() => toggleCheckbox('isHalfDay')}>
-            <View style={{
-              width: 20,
-              height: 20,
-              borderWidth: 1,
-              borderColor: theme.colors.checkboxBorder,
-              backgroundColor: formData.isHalfDay
-                ? theme.colors.checkboxFill
-                : theme.colors.inputBackground,
-              alignItems: 'center',
-              justifyContent: 'center',
-              borderRadius: theme.borderRadius.xs,
-            }}>
+          <Pressable
+            style={styles.checkboxContainer}
+            onPress={() => toggleCheckbox("isHalfDay")}
+          >
+            <View
+              style={{
+                width: 20,
+                height: 20,
+                borderWidth: 1,
+                borderColor: theme.colors.checkboxBorder,
+                backgroundColor: formData.isHalfDay
+                  ? theme.colors.checkboxFill
+                  : theme.colors.inputBackground,
+                alignItems: "center",
+                justifyContent: "center",
+                borderRadius: theme.borderRadius.xs,
+              }}
+            >
               {formData.isHalfDay && (
                 <Ionicons
                   name="checkmark"
@@ -187,25 +325,32 @@ const AttendanceRequestForm: React.FC<AttendanceRequestFormProps> = ({ onSubmit,
               )}
             </View>
           </Pressable>
-          <Text style={[styles.checkboxLabel, { color: theme.colors.textPrimary }]}>
+          <Text
+            style={[styles.checkboxLabel, { color: theme.colors.textPrimary }]}
+          >
             Half Day
           </Text>
         </View>
 
         <View style={styles.checkboxRow}>
-          <Pressable onPress={() => toggleCheckbox('includeHolidays')}>
-            <View style={{
-              width: 20,
-              height: 20,
-              borderWidth: 1,
-              borderColor: theme.colors.checkboxBorder,
-              backgroundColor: formData.includeHolidays
-                ? theme.colors.checkboxFill
-                : theme.colors.inputBackground,
-              alignItems: 'center',
-              justifyContent: 'center',
-              borderRadius: theme.borderRadius.xs,
-            }}>
+          <Pressable
+            style={styles.checkboxContainer}
+            onPress={() => toggleCheckbox("includeHolidays")}
+          >
+            <View
+              style={{
+                width: 20,
+                height: 20,
+                borderWidth: 1,
+                borderColor: theme.colors.checkboxBorder,
+                backgroundColor: formData.includeHolidays
+                  ? theme.colors.checkboxFill
+                  : theme.colors.inputBackground,
+                alignItems: "center",
+                justifyContent: "center",
+                borderRadius: theme.borderRadius.xs,
+              }}
+            >
               {formData.includeHolidays && (
                 <Ionicons
                   name="checkmark"
@@ -215,28 +360,44 @@ const AttendanceRequestForm: React.FC<AttendanceRequestFormProps> = ({ onSubmit,
               )}
             </View>
           </Pressable>
-          <Text style={[styles.checkboxLabel, { color: theme.colors.textPrimary }]}>
+          <Text
+            style={[styles.checkboxLabel, { color: theme.colors.textPrimary }]}
+          >
             Include Holidays
           </Text>
         </View>
 
+        {/* Rest of the form remains the same */}
         <View style={styles.fieldContainer}>
-          <Text style={[styles.label, { color: theme.colors.textPrimary }]}>Shift</Text>
+          <Text style={[styles.label, { color: theme.colors.textPrimary }]}>
+            Shift
+          </Text>
           <TouchableOpacity
-            style={[styles.dropdownContainer, {
-              backgroundColor: theme.colors.inputBackground,
-              borderColor: theme.colors.inputBorder,
-            }]}
-            onPress={() => setShowShiftDropdown(!showShiftDropdown)}
+            style={[
+              styles.dropdownContainer,
+              {
+                backgroundColor: theme.colors.inputBackground,
+                borderColor: showShiftDropdown
+                  ? theme.colors.inputBorderFocus
+                  : theme.colors.inputBorder,
+              },
+            ]}
+            onPress={() => {
+              setShowShiftDropdown(!showShiftDropdown);
+              setShowReasonDropdown(false);
+            }}
           >
             <Text
               style={[
                 styles.inputText,
-                { color: theme.colors.textPrimary },
-                !formData.shift && { color: theme.colors.inputPlaceholder }
+                {
+                  color: formData.shift
+                    ? theme.colors.textPrimary
+                    : theme.colors.inputPlaceholder,
+                },
               ]}
             >
-              {formData.shift || 'Select Shift Type'}
+              {formData.shift || "Select Shift Type"}
             </Text>
             <Ionicons
               name={showShiftDropdown ? "chevron-up" : "chevron-down"}
@@ -246,24 +407,45 @@ const AttendanceRequestForm: React.FC<AttendanceRequestFormProps> = ({ onSubmit,
           </TouchableOpacity>
 
           {showShiftDropdown && (
-            <View style={[styles.dropdown, {
-              backgroundColor: theme.colors.surfacePrimary,
-              borderColor: theme.colors.border,
-              shadowColor: theme.colors.shadow,
-            }]}>
+            <View
+              style={[
+                styles.dropdown,
+                {
+                  backgroundColor: theme.colors.surfacePrimary,
+                  borderColor: theme.colors.border,
+                  shadowColor: theme.colors.shadow,
+                  elevation: 4,
+                },
+              ]}
+            >
               {shifts.map((shift, index) => (
                 <TouchableOpacity
                   key={index}
-                  style={[styles.dropdownItem, {
-                    borderBottomColor: theme.colors.divider,
-                    backgroundColor: theme.colors.surfacePrimary,
-                  }]}
+                  style={[
+                    styles.dropdownItem,
+                    {
+                      borderBottomColor:
+                        index < shifts.length - 1
+                          ? theme.colors.divider
+                          : "transparent",
+                      borderBottomWidth: index < shifts.length - 1 ? 1 : 0,
+                      backgroundColor:
+                        formData.shift === shift
+                          ? theme.colors.highlight
+                          : theme.colors.surfacePrimary,
+                    },
+                  ]}
                   onPress={() => {
                     setFormData({ ...formData, shift });
                     setShowShiftDropdown(false);
                   }}
                 >
-                  <Text style={[styles.dropdownItemText, { color: theme.colors.textPrimary }]}>
+                  <Text
+                    style={[
+                      styles.dropdownItemText,
+                      { color: theme.colors.textPrimary },
+                    ]}
+                  >
                     {shift}
                   </Text>
                 </TouchableOpacity>
@@ -273,25 +455,41 @@ const AttendanceRequestForm: React.FC<AttendanceRequestFormProps> = ({ onSubmit,
         </View>
 
         <View style={styles.fieldContainer}>
-          <Text style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}>Reason</Text>
+          <Text
+            style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}
+          >
+            Reason
+          </Text>
           <Text style={[styles.label, { color: theme.colors.textPrimary }]}>
             Reason <Text style={{ color: theme.statusColors.error }}>*</Text>
           </Text>
           <TouchableOpacity
-            style={[styles.dropdownContainer, {
-              backgroundColor: theme.colors.inputBackground,
-              borderColor: theme.colors.inputBorder,
-            }]}
-            onPress={() => setShowReasonDropdown(!showReasonDropdown)}
+            style={[
+              styles.dropdownContainer,
+              {
+                backgroundColor: theme.colors.inputBackground,
+                borderColor: showReasonDropdown
+                  ? theme.colors.inputBorderFocus
+                  : theme.colors.inputBorder,
+              },
+            ]}
+            activeOpacity={0.8}
+            onPress={() => {
+              setShowReasonDropdown(!showReasonDropdown);
+              setShowShiftDropdown(false);
+            }}
           >
             <Text
               style={[
                 styles.inputText,
-                { color: theme.colors.textPrimary },
-                !formData.reason && { color: theme.colors.inputPlaceholder }
+                {
+                  color: formData.reason
+                    ? theme.colors.textPrimary
+                    : theme.colors.inputPlaceholder,
+                },
               ]}
             >
-              {formData.reason || 'Select Reason'}
+              {formData.reason || "Select Reason"}
             </Text>
             <Ionicons
               name={showReasonDropdown ? "chevron-up" : "chevron-down"}
@@ -301,24 +499,45 @@ const AttendanceRequestForm: React.FC<AttendanceRequestFormProps> = ({ onSubmit,
           </TouchableOpacity>
 
           {showReasonDropdown && (
-            <View style={[styles.dropdown, {
-              backgroundColor: theme.colors.surfacePrimary,
-              borderColor: theme.colors.border,
-              shadowColor: theme.colors.shadow,
-            }]}>
+            <View
+              style={[
+                styles.dropdown,
+                {
+                  backgroundColor: theme.colors.surfacePrimary,
+                  borderColor: theme.colors.border,
+                  shadowColor: theme.colors.shadow,
+                  elevation: 4,
+                },
+              ]}
+            >
               {reasons.map((reason, index) => (
                 <TouchableOpacity
                   key={index}
-                  style={[styles.dropdownItem, {
-                    borderBottomColor: theme.colors.divider,
-                    backgroundColor: theme.colors.surfacePrimary,
-                  }]}
+                  style={[
+                    styles.dropdownItem,
+                    {
+                      borderBottomColor:
+                        index < reasons.length - 1
+                          ? theme.colors.divider
+                          : "transparent",
+                      borderBottomWidth: index < reasons.length - 1 ? 1 : 0,
+                      backgroundColor:
+                        formData.reason === reason
+                          ? theme.colors.highlight
+                          : theme.colors.surfacePrimary,
+                    },
+                  ]}
                   onPress={() => {
                     setFormData({ ...formData, reason });
                     setShowReasonDropdown(false);
                   }}
                 >
-                  <Text style={[styles.dropdownItemText, { color: theme.colors.textPrimary }]}>
+                  <Text
+                    style={[
+                      styles.dropdownItemText,
+                      { color: theme.colors.textPrimary },
+                    ]}
+                  >
                     {reason}
                   </Text>
                 </TouchableOpacity>
@@ -328,33 +547,54 @@ const AttendanceRequestForm: React.FC<AttendanceRequestFormProps> = ({ onSubmit,
         </View>
 
         <View style={styles.fieldContainer}>
-          <Text style={[styles.label, { color: theme.colors.textPrimary }]}>Explanation</Text>
+          <Text style={[styles.label, { color: theme.colors.textPrimary }]}>
+            Explanation
+          </Text>
           <TextInput
-            style={[styles.input, styles.textarea, {
-              backgroundColor: theme.colors.inputBackground,
-              borderColor: theme.colors.inputBorder,
-              color: theme.colors.textPrimary
-            }]}
+            style={[
+              styles.input,
+              styles.textarea,
+              {
+                backgroundColor: theme.colors.inputBackground,
+                borderColor: theme.colors.inputBorder,
+                color: theme.colors.textPrimary,
+              },
+            ]}
             multiline
             placeholder="Enter Explanation"
             placeholderTextColor={theme.colors.inputPlaceholder}
             value={formData.explanation}
-            onChangeText={(text) => setFormData({ ...formData, explanation: text })}
+            onChangeText={(text) =>
+              setFormData({ ...formData, explanation: text })
+            }
           />
         </View>
       </ScrollView>
 
-      <View style={[styles.saveButtonContainer, {
-        backgroundColor: theme.colors.surfacePrimary,
-        borderTopColor: theme.colors.divider
-      }]}>
+      <View
+        style={[
+          styles.saveButtonContainer,
+          {
+            backgroundColor: theme.colors.surfacePrimary,
+            borderTopColor: theme.colors.divider,
+            borderTopWidth: 1,
+          },
+        ]}
+      >
         <TouchableOpacity
-          style={[styles.saveButton, {
-            backgroundColor: theme.colors.buttonPrimary
-          }]}
+          style={[
+            styles.saveButton,
+            {
+              backgroundColor: theme.colors.buttonPrimary,
+            },
+          ]}
           onPress={handleSubmit}
         >
-          <Text style={[styles.saveButtonText, { color: theme.baseColors.white }]}>Save</Text>
+          <Text
+            style={[styles.saveButtonText, { color: theme.baseColors.white }]}
+          >
+            Save
+          </Text>
         </TouchableOpacity>
       </View>
     </KeyboardAvoidingView>
@@ -367,13 +607,13 @@ const styles = StyleSheet.create({
   },
   header: {
     padding: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     borderBottomWidth: 1,
   },
   title: {
     fontSize: 18,
-    fontWeight: '600',
+    fontWeight: "600",
     marginLeft: 8,
   },
   backButton: {
@@ -385,37 +625,47 @@ const styles = StyleSheet.create({
   },
   fieldContainer: {
     marginBottom: 24,
-    position: 'relative',
+    position: "relative",
   },
   label: {
-    fontSize: 14,
-    fontWeight: '500',
+    fontSize: 16,
+    fontWeight: "500",
     marginBottom: 8,
   },
   input: {
     borderWidth: 1,
-    borderRadius: 4,
+    borderRadius: 16,
     padding: 16,
     fontSize: 14,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
   },
   inputText: {
     fontSize: 14,
+    flex: 1,
+  },
+  calendarIcon: {
+    marginLeft: 8,
   },
   textarea: {
-    height: 120,
-    textAlignVertical: 'top',
+    height: 100,
+    textAlignVertical: "top",
   },
   dropdownContainer: {
     borderWidth: 1,
-    borderRadius: 4,
+    borderRadius: 16,
     padding: 16,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  checkboxContainer: {
+    padding: 4,
   },
   checkboxRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     marginBottom: 16,
     gap: 8,
   },
@@ -424,42 +674,37 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
     marginBottom: 16,
   },
   dropdown: {
-    position: 'absolute',
-    top: '100%',
+    position: "absolute",
+    top: "100%",
     left: 0,
     right: 0,
     borderWidth: 1,
-    borderRadius: 4,
+    borderRadius: 16,
     zIndex: 1000,
     marginTop: 4,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.23,
-    shadowRadius: 2.62,
-    elevation: 4,
+    overflow: "hidden",
   },
   dropdownItem: {
     padding: 16,
-    borderBottomWidth: 1,
   },
   dropdownItemText: {
     fontSize: 14,
   },
   saveButtonContainer: {
-    padding: 16,
-    borderTopWidth: 1,
+    padding: 12,
   },
   saveButton: {
     padding: 16,
-    borderRadius: 4,
-    alignItems: 'center',
+    borderRadius: 16,
+    alignItems: "center",
   },
   saveButtonText: {
     fontSize: 16,
-    fontWeight: '500',
+    fontWeight: "500",
   },
 });
 
