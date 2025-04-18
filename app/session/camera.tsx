@@ -226,6 +226,11 @@ export default function CameraScreen() {
         throw new Error("Failed to capture photo");
       }
 
+      // add location data to photo
+      photo.exif.latitude = location?.coords.latitude;
+      photo.exif.longitude = location?.coords.longitude;
+      photo.exif.altitude = location?.coords.altitude || 0;
+
       const Album = await MediaLibrary.getAlbumAsync("Feet On Street");
 
       // Manipulate photo
@@ -248,8 +253,14 @@ export default function CameraScreen() {
 
       photoAsset = await MediaLibrary.createAssetAsync(manipulatedUri);
 
+      console.log("exif data", photo.exif);
+
       if (!Album) {
-        await MediaLibrary.createAlbumAsync("Feet On Street", photoAsset, false);
+        await MediaLibrary.createAlbumAsync(
+          "Feet On Street",
+          photoAsset,
+          false
+        );
       } else {
         await MediaLibrary.addAssetsToAlbumAsync(photoAsset, Album, false);
       }
