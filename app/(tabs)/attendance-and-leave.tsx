@@ -10,18 +10,23 @@ import {
   View,
   Platform,
   RefreshControl,
+  ActivityIndicator,
 } from "react-native";
 import { AnimatedCircularProgress } from "react-native-circular-progress";
 import AttendanceView from "@/components/attendance/AttendanceView";
 import useAttendance from "@/hooks/useAttendance";
+import useLeaveApplications from "@/hooks/useLeaves";
+import dayjs from "dayjs";
+import LeaveDetailsModal from "@/components/leaves/LeaveDetails";
 
 type ActivityType = {
-  id: string;
+  name: string;
   type: "attendance" | "leave";
   category: string;
   date: string;
   duration: string;
   status: string;
+  id: string;
 };
 
 const AttendanceAndLeavesScreen = () => {
@@ -29,13 +34,15 @@ const AttendanceAndLeavesScreen = () => {
   const { accessToken } = useAuthContext();
   const [activeTab, setActiveTab] = useState("attendance");
   const scrollViewRef = useRef(null);
+  // Add these state variables for the modal
+  const [selectedLeaveId, setSelectedLeaveId] = useState<string | null>(null);
+  const [isModalVisible, setIsModalVisible] = useState(false);
 
   const employeeId = "HR-EMP-00001";
 
-  const attendanceResource = useAttendance(
-    accessToken ?? "",
-    employeeId
-  );
+  const attendanceResource = useAttendance(accessToken ?? "", employeeId);
+
+  const leaveResource = useLeaveApplications(accessToken ?? "", employeeId);
 
   const leaveBalances = [
     {
@@ -64,16 +71,23 @@ const AttendanceAndLeavesScreen = () => {
     },
   ];
 
-  const recentActivity: ActivityType[] = [
+  // Convert leave application data to activity format
+  const leaveActivities = leaveResource.data.map((leave) => ({
+    name: leave.name, // Add name property
+    id: leave.name,
+    type: "leave" as const,
+    category: leave.leave_type,
+    date: formatDateRange(leave.from_date, leave.to_date),
+    duration: `${leave.total_leave_days}d`,
+    status: leave.status,
+  }));
+
+  console.log("Hey", leaveActivities)
+
+  // Placeholder attendance data until integrated with real data
+  const attendanceActivities: ActivityType[] = [
     {
-      id: "1",
-      type: "leave",
-      category: "Casual Leave",
-      date: "11 Mar",
-      duration: "1d",
-      status: "Approved",
-    },
-    {
+      name: "ATT-2", // Add name field
       id: "2",
       type: "attendance",
       category: "Work From Home",
@@ -82,14 +96,7 @@ const AttendanceAndLeavesScreen = () => {
       status: "Submitted",
     },
     {
-      id: "3",
-      type: "leave",
-      category: "Privilege Leave",
-      date: "6 Feb - 7 Feb",
-      duration: "2d",
-      status: "Approved",
-    },
-    {
+      name: "ATT-4", // Add name field
       id: "4",
       type: "attendance",
       category: "On Duty",
@@ -98,6 +105,37 @@ const AttendanceAndLeavesScreen = () => {
       status: "Submitted",
     },
   ];
+
+  // Function to format date range in a readable format
+  function formatDateRange(fromDate: string, toDate: string): string {
+    const from = dayjs(fromDate);
+    const to = dayjs(toDate);
+
+    if (from.isSame(to, "day")) {
+      return from.format("D MMM");
+    }
+
+    if (from.isSame(to, "month")) {
+      return `${from.format("D")} - ${to.format("D MMM")}`;
+    }
+
+    return `${from.format("D MMM")} - ${to.format("D MMM")}`;
+  }
+
+  // Function to handle the activity item click
+  const handleActivityItemClick = (item: ActivityType) => {
+    if (item.type === "leave") {
+      setSelectedLeaveId(item.id);
+      setIsModalVisible(true);
+    }
+    // Handle attendance type click if needed
+  };
+
+  // Function to close the modal
+  const handleCloseModal = () => {
+    setIsModalVisible(false);
+    setSelectedLeaveId(null);
+  };
 
   const TabButtons = () => (
     <View style={styles.tabButtonContainer}>
@@ -329,6 +367,19 @@ const AttendanceAndLeavesScreen = () => {
       }
     };
 
+    const getStatusColor = (status: string) => {
+      switch (status.toLowerCase()) {
+        case "approved":
+          return theme.statusColors.success;
+        case "rejected":
+          return theme.statusColors.error;
+        case "pending":
+          return theme.statusColors.warning;
+        default:
+          return theme.statusColors.info;
+      }
+    };
+
     return (
       <TouchableOpacity
         style={[
@@ -348,6 +399,7 @@ const AttendanceAndLeavesScreen = () => {
             }),
           },
         ]}
+        onPress={() => handleActivityItemClick(item)}
       >
         <View
           style={[
@@ -384,10 +436,7 @@ const AttendanceAndLeavesScreen = () => {
           style={[
             styles.activityStatus,
             {
-              backgroundColor:
-                item.status === "Approved"
-                  ? theme.statusColors.success + "20"
-                  : theme.statusColors.info + "20",
+              backgroundColor: getStatusColor(item.status) + "20",
             },
           ]}
         >
@@ -395,10 +444,7 @@ const AttendanceAndLeavesScreen = () => {
             style={[
               styles.activityStatusText,
               {
-                color:
-                  item.status === "Approved"
-                    ? theme.statusColors.success
-                    : theme.statusColors.info,
+                color: getStatusColor(item.status),
               },
             ]}
           >
@@ -414,47 +460,70 @@ const AttendanceAndLeavesScreen = () => {
     );
   };
 
-  const RecentActivitySection = () => (
-    <View style={styles.recentActivitySection}>
-      <Text
-        style={[
-          styles.sectionTitle,
-          { color: theme.colors.textPrimary, paddingHorizontal: 16 },
-        ]}
-      >
-        Recent {activeTab === "attendance" ? "Attendance" : "Leave"} Requests
-      </Text>
-      <View style={styles.activityListContent}>
-        {recentActivity
-          .filter((item) => item.type === activeTab)
-          .map((item) => (
-            <View key={item.id}>{renderActivityItem({ item })}</View>
-          ))}
-        {recentActivity.filter((item) => item.type === activeTab).length ===
-          0 && (
-          <Text
-            style={[
-              styles.emptyListText,
-              { color: theme.colors.textSecondary },
-            ]}
-          >
-            No recent {activeTab} requests found
-          </Text>
+  const RecentActivitySection = () => {
+    const currentActivities =
+      activeTab === "attendance" ? attendanceActivities : leaveActivities;
+
+    const isLoading = activeTab === "leaves" ? leaveResource.loading : false;
+
+    return (
+      <View style={styles.recentActivitySection}>
+        <Text
+          style={[
+            styles.sectionTitle,
+            { color: theme.colors.textPrimary, paddingHorizontal: 16 },
+          ]}
+        >
+          Recent {activeTab === "attendance" ? "Attendance" : "Leave"} Requests
+        </Text>
+
+        {isLoading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color={theme.brandColors.primary} />
+          </View>
+        ) : (
+          <View style={styles.activityListContent}>
+            {currentActivities.length > 0 ? (
+              currentActivities.map((item) => (
+                <View key={`${item.type}-${item.id}`}>
+                  {renderActivityItem({ item })}
+                </View>
+              ))
+            ) : (
+              <Text
+                style={[
+                  styles.emptyListText,
+                  { color: theme.colors.textSecondary },
+                ]}
+              >
+                No recent {activeTab} requests found
+              </Text>
+            )}
+          </View>
         )}
       </View>
-    </View>
-  );
-
+    );
+  };
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+    <View
+      style={[styles.container, { backgroundColor: theme.colors.background }]}
+    >
       <TabButtons />
 
       <ScrollView
         style={styles.contentContainer}
         refreshControl={
           <RefreshControl
-            refreshing={attendanceResource.refreshing}
-            onRefresh={attendanceResource.refresh}
+            refreshing={
+              activeTab === "attendance"
+                ? attendanceResource.refreshing
+                : leaveResource.refreshing
+            }
+            onRefresh={
+              activeTab === "attendance"
+                ? attendanceResource.refresh
+                : leaveResource.refresh
+            }
             colors={[theme.brandColors.primary]}
             tintColor={theme.brandColors.primary}
           />
@@ -465,9 +534,7 @@ const AttendanceAndLeavesScreen = () => {
             theme={theme}
             isDark={isDark}
             attendanceResource={attendanceResource}
-            recentActivities={recentActivity.filter(
-              (item) => item.type === "attendance"
-            )}
+            recentActivities={attendanceActivities}
           />
         ) : (
           <>
@@ -477,6 +544,15 @@ const AttendanceAndLeavesScreen = () => {
           </>
         )}
       </ScrollView>
+
+      {/* Add the Leave Details Modal */}
+      <LeaveDetailsModal
+        visible={isModalVisible}
+        leaveId={selectedLeaveId}
+        accessToken={accessToken ?? ""}
+        onClose={handleCloseModal}
+        theme={theme}
+      />
     </View>
   );
 };
@@ -622,6 +698,11 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontWeight: "600",
     marginBottom: 8,
+  },
+  loadingContainer: {
+    padding: 20,
+    alignItems: "center",
+    justifyContent: "center",
   },
 });
 
