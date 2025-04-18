@@ -253,7 +253,9 @@ export default function CameraScreen() {
 
       photoAsset = await MediaLibrary.createAssetAsync(manipulatedUri);
 
-      console.log("exif data", photo.exif);
+      if (process.env.NODE_ENV === "development") {
+        console.log("exif data", photo.exif);
+      }
 
       if (!Album) {
         await MediaLibrary.createAlbumAsync(
