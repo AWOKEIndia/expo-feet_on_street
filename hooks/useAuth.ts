@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { authService, AuthResult } from '../services/auth';
+import { authService, AuthResult, type EmployeeProfile } from '../services/auth';
 
 // Storage keys
 const ACCESS_TOKEN_KEY = 'auth_access_token';
@@ -12,6 +12,7 @@ export interface AuthState {
   isLoading: boolean;
   accessToken: string | null;
   error: Error | null;
+  employeeProfile: EmployeeProfile | null;
 }
 
 export function useAuth() {
@@ -20,7 +21,13 @@ export function useAuth() {
     isLoading: true,
     accessToken: null,
     error: null,
+    employeeProfile: null,
   });
+
+  // Fetch employee profile helper function
+  const fetchEmployeeProfile = async (token: string) => {
+    return await authService.getEmployeeProfile(token);
+  };
 
   // Load tokens from storage on mount
   useEffect(() => {
@@ -41,11 +48,13 @@ export function useAuth() {
             try {
               const result = await authService.refreshToken(refreshToken);
               await saveTokens(result);
+              const employeeProfile = await fetchEmployeeProfile(result.accessToken);
               setState({
                 isAuthenticated: true,
                 isLoading: false,
                 accessToken: result.accessToken,
                 error: null,
+                employeeProfile,
               });
             } catch (refreshError) {
               // Refresh failed, clear tokens
@@ -55,15 +64,18 @@ export function useAuth() {
                 isLoading: false,
                 accessToken: null,
                 error: refreshError as Error,
+                employeeProfile: null,
               });
             }
           } else {
             // Token is still valid
+            const employeeProfile = await fetchEmployeeProfile(accessToken);
             setState({
               isAuthenticated: true,
               isLoading: false,
               accessToken,
               error: null,
+              employeeProfile,
             });
           }
         } else {
@@ -72,6 +84,7 @@ export function useAuth() {
             isLoading: false,
             accessToken: null,
             error: null,
+            employeeProfile: null,
           });
         }
       } catch (error) {
@@ -80,6 +93,7 @@ export function useAuth() {
           isLoading: false,
           accessToken: null,
           error: error as Error,
+          employeeProfile: null,
         });
       }
     };
@@ -120,11 +134,15 @@ export function useAuth() {
       const result = await authService.login();
       await saveTokens(result);
 
+      // Fetch employee profile after successful login
+      const employeeProfile = await fetchEmployeeProfile(result.accessToken);
+
       setState({
         isAuthenticated: true,
         isLoading: false,
         accessToken: result.accessToken,
         error: null,
+        employeeProfile,
       });
 
       return result;
@@ -134,6 +152,7 @@ export function useAuth() {
         isLoading: false,
         accessToken: null,
         error: error as Error,
+        employeeProfile: null,
       });
       throw error;
     }
@@ -157,6 +176,7 @@ export function useAuth() {
         isLoading: false,
         accessToken: null,
         error: null,
+        employeeProfile: null,
       });
     } catch (error) {
       console.error('Logout error:', error);
@@ -167,6 +187,7 @@ export function useAuth() {
         isLoading: false,
         accessToken: null,
         error: null,
+        employeeProfile: null,
       });
     }
   }, [state.accessToken]);
