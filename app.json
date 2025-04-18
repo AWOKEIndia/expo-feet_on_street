@@ -58,7 +58,8 @@
           "savePhotosPermission": "Allow $(PRODUCT_NAME) to save photos.",
           "isAccessMediaLocationEnabled": true
         }
-      ]
+      ],
+       "@react-native-community/datetimepicker"
     ],
     "experiments": {
       "typedRoutes": true

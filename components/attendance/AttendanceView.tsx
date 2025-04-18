@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -7,10 +7,12 @@ import {
   ActivityIndicator,
   ScrollView,
   RefreshControl,
+  Modal,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Calendar } from "react-native-calendars";
 import dayjs from "dayjs";
+import AttendanceRequestForm from "./AttendanceRequestForm";
 
 interface CalendarEventData {
   [date: string]: string;
@@ -24,6 +26,16 @@ type ActivityType = {
   duration: string;
   status: string;
 };
+
+interface AttendanceRequestData {
+  fromDate: Date | null;
+  toDate: Date | null;
+  isHalfDay: boolean;
+  includeHolidays: boolean;
+  shift: string;
+  reason: string;
+  explanation: string;
+}
 
 interface AttendanceViewProps {
   theme: any;
@@ -47,6 +59,8 @@ const AttendanceView = ({
   attendanceResource,
   recentActivities,
 }: AttendanceViewProps) => {
+  // Add state to control the visibility of the form modal
+  const [showRequestForm, setShowRequestForm] = useState(false);
 
   const markedDates = useMemo(() => {
     const marked: Record<string, any> = {};
@@ -365,6 +379,18 @@ const AttendanceView = ({
     </View>
   );
 
+  // Handler for form submission
+  const handleAttendanceRequestSubmit = (data: AttendanceRequestData) => {
+    // Process the form data here (e.g., send it to the API)
+    console.log("Attendance request submitted:", data);
+
+    // Close the form modal
+    setShowRequestForm(false);
+
+    // Optionally refresh the calendar data
+    attendanceResource.refresh();
+  };
+
   const RequestButton = () => (
     <View style={styles.requestButtonsContainer}>
       <TouchableOpacity
@@ -385,6 +411,8 @@ const AttendanceView = ({
             }),
           },
         ]}
+        // Open the form modal when the button is clicked
+        onPress={() => setShowRequestForm(true)}
       >
         <Ionicons
           name="time-outline"
@@ -405,47 +433,62 @@ const AttendanceView = ({
   );
 
   return (
-    <ScrollView
-      style={styles.mainContainer}
-      refreshControl={
-        <RefreshControl
-          refreshing={attendanceResource.refreshing}
-          onRefresh={attendanceResource.refresh}
-          colors={[theme.brandColors.primary]}
-          tintColor={theme.brandColors.primary}
-        />
-      }
-    >
-      <AttendanceCalendar />
-      <RequestButton />
+    <>
+      <ScrollView
+        style={styles.mainContainer}
+        refreshControl={
+          <RefreshControl
+            refreshing={attendanceResource.refreshing}
+            onRefresh={attendanceResource.refresh}
+            colors={[theme.brandColors.primary]}
+            tintColor={theme.brandColors.primary}
+          />
+        }
+      >
+        <AttendanceCalendar />
+        <RequestButton />
 
-      <View style={styles.recentActivitySection}>
-        <Text
-          style={[
-            styles.sectionTitle,
-            { color: theme.colors.textPrimary, paddingHorizontal: 16 },
-          ]}
-        >
-          Recent Attendance Requests
-        </Text>
-        <View style={styles.activityListContent}>
-          {recentActivities.length > 0 ? (
-            recentActivities.map((item) => (
-              <View key={item.id}>{renderActivityItem({ item })}</View>
-            ))
-          ) : (
-            <Text
-              style={[
-                styles.emptyListText,
-                { color: theme.colors.textSecondary },
-              ]}
-            >
-              No recent attendance requests found
-            </Text>
-          )}
+        <View style={styles.recentActivitySection}>
+          <Text
+            style={[
+              styles.sectionTitle,
+              { color: theme.colors.textPrimary, paddingHorizontal: 16 },
+            ]}
+          >
+            Recent Attendance Requests
+          </Text>
+          <View style={styles.activityListContent}>
+            {recentActivities.length > 0 ? (
+              recentActivities.map((item) => (
+                <View key={item.id}>{renderActivityItem({ item })}</View>
+              ))
+            ) : (
+              <Text
+                style={[
+                  styles.emptyListText,
+                  { color: theme.colors.textSecondary },
+                ]}
+              >
+                No recent attendance requests found
+              </Text>
+            )}
+          </View>
         </View>
-      </View>
-    </ScrollView>
+      </ScrollView>
+
+      {/* Modal for the Attendance Request Form */}
+      <Modal
+        visible={showRequestForm}
+        animationType="slide"
+        transparent={false}
+        onRequestClose={() => setShowRequestForm(false)}
+      >
+        <AttendanceRequestForm
+          onSubmit={handleAttendanceRequestSubmit}
+          onCancel={() => setShowRequestForm(false)}
+        />
+      </Modal>
+    </>
   );
 };
 
