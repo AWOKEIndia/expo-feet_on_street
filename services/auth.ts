@@ -22,16 +22,16 @@ export interface AuthResult {
 }
 
 export interface EmployeeProfile {
-  employee_name: string;
-  employee_id: string;
-  department: string;
-  designation: string;
-  date_of_joining: string;
-  status: string;
-  email: string;
-  phone_number: string;
-  address: string;
-  profile_picture?: string;
+  company: string; // This is the company name in the response
+  department: string | null; // This is the employee department in the response
+  designation: string | null; // This is the employee designation in the response
+  employee_name: string; // This is the employee full name in the response
+  first_name: string | null; // This is the employee name in the response
+  name: string; // This is the employee ID in the response
+  reports_to: string | null; // This is the manager ID in the response
+  user_id: string | null; // This is the email field in the response
+  email: string | null; // This does not exist in the response, but we can add it here for convenience
+  [key: string]: any; // Allow additional properties
 }
 
 export const authService = {
@@ -208,7 +208,10 @@ export const authService = {
       }
 
       const data = await response.json();
-      return data.messsage || null;
+      return {
+        email: data.message.user_id,
+        ...data.message,
+      };
     } catch (error) {
       console.error("Error fetching employee profile:", error);
       return null;
