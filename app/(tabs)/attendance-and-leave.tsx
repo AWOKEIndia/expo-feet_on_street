@@ -1,7 +1,7 @@
 import { useAuthContext } from "@/contexts/AuthContext";
 import { useTheme } from "@/contexts/ThemeContext";
 import { Ionicons } from "@expo/vector-icons";
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   ScrollView,
   StyleSheet,
@@ -33,7 +33,7 @@ type ActivityType = {
 
 const AttendanceAndLeavesScreen = () => {
   const { theme, isDark } = useTheme();
-  const { accessToken } = useAuthContext();
+  const { accessToken, employeeProfile } = useAuthContext();
   const [activeTab, setActiveTab] = useState("attendance");
   const scrollViewRef = useRef(null);
   const [selectedLeaveId, setSelectedLeaveId] = useState<string | null>(null);
@@ -42,7 +42,11 @@ const AttendanceAndLeavesScreen = () => {
   const [selectedAttendanceId, setSelectedAttendanceId] = useState<string | null>(null);
   const [isAttendanceModalVisible, setIsAttendanceModalVisible] = useState(false);
 
-  const employeeId = "HR-EMP-00001";
+  const [employeeId, setEmployeeId] = useState("");
+
+  useEffect(() => {
+    setEmployeeId(employeeProfile?.name as string);
+  }, [employeeProfile])
 
   const attendanceResource = useAttendance(accessToken ?? "", employeeId);
   const leaveResource = useLeaveApplications(accessToken ?? "", employeeId);
@@ -580,6 +584,7 @@ const AttendanceAndLeavesScreen = () => {
       <LeaveDetailsModal
         visible={isModalVisible}
         leaveId={selectedLeaveId}
+        employee={employeeId}
         accessToken={accessToken ?? ""}
         onClose={handleCloseModal}
         theme={theme}

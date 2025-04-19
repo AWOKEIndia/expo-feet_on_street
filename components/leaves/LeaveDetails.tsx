@@ -29,6 +29,7 @@ interface LeaveDetailsModalProps {
   visible: boolean;
   leaveId: string | null;
   accessToken: string;
+  employee: string;
   onClose: () => void;
   theme: any;
 }
@@ -37,6 +38,7 @@ const LeaveDetailsModal: React.FC<LeaveDetailsModalProps> = ({
   visible,
   leaveId,
   accessToken,
+  employee,
   onClose,
   theme,
 }) => {
@@ -67,7 +69,7 @@ const LeaveDetailsModal: React.FC<LeaveDetailsModalProps> = ({
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            employee: "HR-EMP-00001",
+            employee: employee,
           }),
         }
       );
