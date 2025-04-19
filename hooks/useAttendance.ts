@@ -74,7 +74,6 @@ const useAttendance = (accessToken: string, employee: string) => {
         console.log("Attendance calendar events retrieved:", result);
 
         if (result.message) {
-          // Update cache and current month data
           cacheRef.current[monthKey] = result.message;
           setCurrentMonthData(result.message);
         } else {
@@ -106,7 +105,6 @@ const useAttendance = (accessToken: string, employee: string) => {
     fetchAttendanceData(currentMonth);
   }, [currentMonth, fetchAttendanceData]);
 
-  // Load data when month changes
   useEffect(() => {
     fetchAttendanceData(currentMonth);
   }, [currentMonth, fetchAttendanceData]);

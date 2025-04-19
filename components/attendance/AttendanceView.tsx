@@ -50,16 +50,13 @@ interface AttendanceViewProps {
     nextMonth: () => void;
     setCurrentMonth: (month: dayjs.Dayjs) => void;
   };
-  recentActivities: ActivityType[];
 }
 
 const AttendanceView = ({
   theme,
   isDark,
   attendanceResource,
-  recentActivities,
 }: AttendanceViewProps) => {
-  // Add state to control the visibility of the form modal
   const [showRequestForm, setShowRequestForm] = useState(false);
 
   const markedDates = useMemo(() => {
@@ -414,6 +411,12 @@ const AttendanceView = ({
         // Open the form modal when the button is clicked
         onPress={() => setShowRequestForm(true)}
       >
+        <Ionicons
+          name="briefcase-outline"
+          size={20}
+          color={theme.colors.textInverted}
+          style={styles.requestButtonIcon}
+        />
         <Text
           style={[
             styles.requestButtonText,
@@ -441,33 +444,6 @@ const AttendanceView = ({
       >
         <AttendanceCalendar />
         <RequestButton />
-
-        <View style={styles.recentActivitySection}>
-          <Text
-            style={[
-              styles.sectionTitle,
-              { color: theme.colors.textPrimary, paddingHorizontal: 16 },
-            ]}
-          >
-            Recent Attendance Requests
-          </Text>
-          <View style={styles.activityListContent}>
-            {recentActivities.length > 0 ? (
-              recentActivities.map((item) => (
-                <View key={item.id}>{renderActivityItem({ item })}</View>
-              ))
-            ) : (
-              <Text
-                style={[
-                  styles.emptyListText,
-                  { color: theme.colors.textSecondary },
-                ]}
-              >
-                No recent attendance requests found
-              </Text>
-            )}
-          </View>
-        </View>
       </ScrollView>
 
       {/* Modal for the Attendance Request Form */}

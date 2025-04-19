@@ -16,8 +16,10 @@ import { AnimatedCircularProgress } from "react-native-circular-progress";
 import AttendanceView from "@/components/attendance/AttendanceView";
 import useAttendance from "@/hooks/useAttendance";
 import useLeaveApplications from "@/hooks/useLeaves";
-import dayjs from "dayjs";
+import useAttendanceRequests from "@/hooks/useAttendanceRequest";
 import LeaveDetailsModal from "@/components/leaves/LeaveDetails";
+import AttendanceDetailsModal from "@/components/attendance/AttendanceDetails";
+import dayjs from "dayjs";
 
 type ActivityType = {
   name: string;
@@ -34,15 +36,20 @@ const AttendanceAndLeavesScreen = () => {
   const { accessToken } = useAuthContext();
   const [activeTab, setActiveTab] = useState("attendance");
   const scrollViewRef = useRef(null);
-  // Add these state variables for the modal
   const [selectedLeaveId, setSelectedLeaveId] = useState<string | null>(null);
   const [isModalVisible, setIsModalVisible] = useState(false);
+
+  const [selectedAttendanceId, setSelectedAttendanceId] = useState<string | null>(null);
+  const [isAttendanceModalVisible, setIsAttendanceModalVisible] = useState(false);
 
   const employeeId = "HR-EMP-00001";
 
   const attendanceResource = useAttendance(accessToken ?? "", employeeId);
-
   const leaveResource = useLeaveApplications(accessToken ?? "", employeeId);
+  const attendanceRequestResource = useAttendanceRequests(
+    accessToken ?? "",
+    employeeId
+  );
 
   const leaveBalances = [
     {
@@ -73,7 +80,7 @@ const AttendanceAndLeavesScreen = () => {
 
   // Convert leave application data to activity format
   const leaveActivities = leaveResource.data.map((leave) => ({
-    name: leave.name, // Add name property
+    name: leave.name,
     id: leave.name,
     type: "leave" as const,
     category: leave.leave_type,
@@ -82,29 +89,21 @@ const AttendanceAndLeavesScreen = () => {
     status: leave.status,
   }));
 
-  console.log("Hey", leaveActivities)
-
-  // Placeholder attendance data until integrated with real data
-  const attendanceActivities: ActivityType[] = [
-    {
-      name: "ATT-2", // Add name field
-      id: "2",
-      type: "attendance",
-      category: "Work From Home",
-      date: "4 Mar",
-      duration: "1d",
-      status: "Submitted",
-    },
-    {
-      name: "ATT-4", // Add name field
-      id: "4",
-      type: "attendance",
-      category: "On Duty",
-      date: "6 Jan",
-      duration: "1d",
-      status: "Submitted",
-    },
-  ];
+  // Convert attendance request data to activity format
+  const attendanceActivities: ActivityType[] = attendanceRequestResource.data.map(
+    (request) => ({
+      name: request.name,
+      id: request.name,
+      type: "attendance" as const,
+      category: request.reason,
+      date: formatDateRange(request.from_date, request.to_date),
+      duration: `${attendanceRequestResource.calculateDays(
+        request.from_date,
+        request.to_date
+      )}d`,
+      status: request.status,
+    })
+  );
 
   // Function to format date range in a readable format
   function formatDateRange(fromDate: string, toDate: string): string {
@@ -127,14 +126,23 @@ const AttendanceAndLeavesScreen = () => {
     if (item.type === "leave") {
       setSelectedLeaveId(item.id);
       setIsModalVisible(true);
+    } else if (item.type === "attendance") {
+      setSelectedAttendanceId(item.id);
+      attendanceRequestResource.selectAttendanceById?.(item.id);
+      setIsAttendanceModalVisible(true);
     }
-    // Handle attendance type click if needed
   };
 
   // Function to close the modal
   const handleCloseModal = () => {
     setIsModalVisible(false);
     setSelectedLeaveId(null);
+  };
+
+  const handleCloseAttendanceModal = () => {
+    setIsAttendanceModalVisible(false);
+    setSelectedAttendanceId(null);
+    attendanceRequestResource.clearSelectedAttendance?.();
   };
 
   const TabButtons = () => (
@@ -375,6 +383,12 @@ const AttendanceAndLeavesScreen = () => {
           return theme.statusColors.error;
         case "pending":
           return theme.statusColors.warning;
+        case "submitted":
+          return theme.statusColors.success;
+        case "draft":
+          return theme.colors.textInfo;
+        case "cancelled":
+          return theme.statusColors.error;
         default:
           return theme.statusColors.info;
       }
@@ -464,7 +478,12 @@ const AttendanceAndLeavesScreen = () => {
     const currentActivities =
       activeTab === "attendance" ? attendanceActivities : leaveActivities;
 
-    const isLoading = activeTab === "leaves" ? leaveResource.loading : false;
+    const isLoading =
+      activeTab === "leaves"
+        ? leaveResource.loading
+        : activeTab === "attendance"
+        ? attendanceRequestResource.loading
+        : false;
 
     return (
       <View style={styles.recentActivitySection}>
@@ -504,6 +523,7 @@ const AttendanceAndLeavesScreen = () => {
       </View>
     );
   };
+
   return (
     <View
       style={[styles.container, { backgroundColor: theme.colors.background }]}
@@ -516,12 +536,12 @@ const AttendanceAndLeavesScreen = () => {
           <RefreshControl
             refreshing={
               activeTab === "attendance"
-                ? attendanceResource.refreshing
+                ? attendanceRequestResource.refreshing
                 : leaveResource.refreshing
             }
             onRefresh={
               activeTab === "attendance"
-                ? attendanceResource.refresh
+                ? attendanceRequestResource.refresh
                 : leaveResource.refresh
             }
             colors={[theme.brandColors.primary]}
@@ -530,12 +550,14 @@ const AttendanceAndLeavesScreen = () => {
         }
       >
         {activeTab === "attendance" ? (
-          <AttendanceView
-            theme={theme}
-            isDark={isDark}
-            attendanceResource={attendanceResource}
-            recentActivities={attendanceActivities}
-          />
+          <>
+            <AttendanceView
+              theme={theme}
+              isDark={isDark}
+              attendanceResource={attendanceResource}
+            />
+            <RecentActivitySection />
+          </>
         ) : (
           <>
             <LeaveBalanceCards />
@@ -545,7 +567,16 @@ const AttendanceAndLeavesScreen = () => {
         )}
       </ScrollView>
 
-      {/* Add the Leave Details Modal */}
+      <AttendanceDetailsModal
+        visible={isAttendanceModalVisible}
+        attendanceId={selectedAttendanceId}
+        attendanceDetails={attendanceRequestResource.selectedAttendance}
+        onClose={handleCloseAttendanceModal}
+        theme={theme}
+        loading={attendanceRequestResource.loading}
+        calculateDays={attendanceRequestResource.calculateDays}
+      />
+
       <LeaveDetailsModal
         visible={isModalVisible}
         leaveId={selectedLeaveId}
@@ -697,7 +728,8 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 22,
     fontWeight: "600",
-    marginBottom: 8,
+    marginBottom: 12,
+    marginTop: 8,
   },
   loadingContainer: {
     padding: 20,
