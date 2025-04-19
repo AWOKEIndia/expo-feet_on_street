@@ -1,37 +1,39 @@
-import React, { useEffect, useState } from "react";
-import { StyleSheet, View, TouchableOpacity, ScrollView, Alert, ActivityIndicator } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { Camera } from "expo-camera";
 import * as Location from "expo-location";
 import * as MediaLibrary from "expo-media-library";
-import { Camera, useCameraPermissions } from "expo-camera";
+import React, { useEffect, useState } from "react";
+import { ActivityIndicator, Alert, ScrollView, StyleSheet, TouchableOpacity, View } from "react-native";
 
 import { ThemedText } from "@/components/ThemedText";
-import { useTheme } from "@/contexts/ThemeContext";
-import { useAuthContext } from "@/contexts/AuthContext";
-import { useRouter } from "expo-router";
+import { useTheme, THEME_STORAGE_KEY } from "@/contexts/ThemeContext";
 
 export default function SettingsScreen() {
-  const { theme, isDark, themeType, setThemeType } = useTheme();
-  const { logout } = useAuthContext();
-  const router = useRouter();
+  const { theme, themeType, setThemeType } = useTheme();
 
   // Permission states
   const [locationPermission, setLocationPermission] = useState<boolean | null>(null);
   const [storagePermission, setStoragePermission] = useState<boolean | null>(null);
   const [cameraPermission, setCameraPermission] = useState<boolean | null>(null);
-  const [cameraPermissionStatus, requestCameraPermission] = useCameraPermissions();
+
+  // Save theme preference to storage when it changes
+  const saveThemePreference = async () => {
+    try {
+      await AsyncStorage.setItem(THEME_STORAGE_KEY, themeType);
+    } catch (error) {
+      console.error("Failed to save theme preference", error);
+    }
+  };
+
+  useEffect(() => {
+    saveThemePreference();
+  }, [themeType]);
 
   // Check permissions on mount
   useEffect(() => {
     checkPermissions();
   }, []);
-
-  // Update camera permission state when it changes
-  useEffect(() => {
-    if (cameraPermissionStatus) {
-      setCameraPermission(cameraPermissionStatus.granted);
-    }
-  }, [cameraPermissionStatus]);
 
   const checkPermissions = async () => {
     // Check location permission
@@ -42,41 +44,76 @@ export default function SettingsScreen() {
     const storageStatus = await MediaLibrary.getPermissionsAsync();
     setStoragePermission(storageStatus.granted);
 
-    // Camera permission is handled by the useCameraPermissions hook
+    // Check camera permission
+    const cameraStatus = await Camera.getCameraPermissionsAsync();
+    setCameraPermission(cameraStatus.granted);
   };
 
-  const handleLogout = async () => {
-    Alert.alert(
-      "Logout",
-      "Are you sure you want to logout?",
-      [
-        {
-          text: "Cancel",
-          style: "cancel",
-        },
-        {
-          text: "Logout",
-          style: "destructive",
-          onPress: async () => {
-            await logout();
-            router.replace("/login");
-          },
-        },
-      ],
-      { cancelable: true }
-    );
+  const requestPermission = async (type: 'location' | 'storage' | 'camera') => {
+    try {
+      switch (type) {
+        case 'location':
+          if (locationPermission) {
+            Alert.alert("Permission Already Granted", "Location permission is already granted.");
+            return;
+          }
+          const locationResult = await Location.requestForegroundPermissionsAsync();
+          setLocationPermission(locationResult.granted);
+          break;
+
+        case 'storage':
+          if (storagePermission) {
+            Alert.alert("Permission Already Granted", "Storage permission is already granted.");
+            return;
+          }
+          const storageResult = await MediaLibrary.requestPermissionsAsync();
+          setStoragePermission(storageResult.granted);
+          break;
+
+        case 'camera':
+          if (cameraPermission) {
+            Alert.alert("Permission Already Granted", "Camera permission is already granted.");
+            return;
+          }
+          const cameraResult = await Camera.requestCameraPermissionsAsync();
+          setCameraPermission(cameraResult.granted);
+          break;
+      }
+    } catch (error) {
+      console.error(`Error requesting ${type} permission:`, error);
+      Alert.alert("Permission Error", `Failed to request ${type} permission.`);
+    }
   };
 
-  const renderPermissionStatus = (granted: boolean | null) => {
+  const renderPermissionStatus = (granted: boolean | null, permissionType: 'location' | 'storage' | 'camera') => {
     if (granted === null) {
       return <ActivityIndicator size="small" color={theme.colors.buttonPrimary} />;
     }
+
     return (
-      <Ionicons
-        name={granted ? "checkmark-circle" : "close-circle"}
-        size={24}
-        color={granted ? "#4CAF50" : "#FF3B30"}
-      />
+      <View style={styles.permissionActions}>
+        <Ionicons
+          name={granted ? "checkmark-circle" : "close-circle"}
+          size={24}
+          color={granted ? theme.colors.iconSuccess : theme.colors.iconError}
+          style={styles.statusIcon}
+        />
+        <TouchableOpacity
+          style={[
+            styles.permissionButton,
+            { backgroundColor: granted ? theme.colors.surfaceSecondary : theme.colors.buttonPrimary }
+          ]}
+          onPress={() => requestPermission(permissionType)}
+          disabled={granted}
+        >
+          <ThemedText style={{
+            color: granted ? theme.colors.textSecondary : theme.colors.textInverted,
+            fontSize: theme.typography.fontSizes.sm,
+          }}>
+            {granted ? "Granted" : "Request"}
+          </ThemedText>
+        </TouchableOpacity>
+      </View>
     );
   };
 
@@ -91,7 +128,7 @@ export default function SettingsScreen() {
           <TouchableOpacity
             style={[
               styles.themeOption,
-              themeType === "light" && styles.selectedTheme,
+              themeType === "light" && [styles.selectedTheme, { backgroundColor: theme.colors.highlight }],
             ]}
             onPress={() => setThemeType("light")}
           >
@@ -105,7 +142,7 @@ export default function SettingsScreen() {
           <TouchableOpacity
             style={[
               styles.themeOption,
-              themeType === "dark" && styles.selectedTheme,
+              themeType === "dark" && [styles.selectedTheme, { backgroundColor: theme.colors.highlight }],
             ]}
             onPress={() => setThemeType("dark")}
           >
@@ -119,7 +156,7 @@ export default function SettingsScreen() {
           <TouchableOpacity
             style={[
               styles.themeOption,
-              themeType === "system" && styles.selectedTheme,
+              themeType === "system" && [styles.selectedTheme, { backgroundColor: theme.colors.highlight }],
             ]}
             onPress={() => setThemeType("system")}
           >
@@ -136,7 +173,7 @@ export default function SettingsScreen() {
       <View style={styles.section}>
         <ThemedText style={styles.sectionTitle}>Permissions</ThemedText>
         <View style={[styles.card, { backgroundColor: theme.colors.surfacePrimary }]}>
-          <View style={styles.permissionRow}>
+          <View style={[styles.permissionRow, { borderBottomColor: theme.colors.divider }]}>
             <View style={styles.permissionInfo}>
               <Ionicons
                 name="location-outline"
@@ -146,9 +183,9 @@ export default function SettingsScreen() {
               />
               <ThemedText>Location</ThemedText>
             </View>
-            {renderPermissionStatus(locationPermission)}
+            {renderPermissionStatus(locationPermission, 'location')}
           </View>
-          <View style={styles.permissionRow}>
+          <View style={[styles.permissionRow, { borderBottomColor: theme.colors.divider }]}>
             <View style={styles.permissionInfo}>
               <Ionicons
                 name="images-outline"
@@ -158,9 +195,9 @@ export default function SettingsScreen() {
               />
               <ThemedText>Storage</ThemedText>
             </View>
-            {renderPermissionStatus(storagePermission)}
+            {renderPermissionStatus(storagePermission, 'storage')}
           </View>
-          <View style={styles.permissionRow}>
+          <View style={[styles.permissionRow, { borderBottomColor: theme.colors.divider }]}>
             <View style={styles.permissionInfo}>
               <Ionicons
                 name="camera-outline"
@@ -170,21 +207,8 @@ export default function SettingsScreen() {
               />
               <ThemedText>Camera</ThemedText>
             </View>
-            {renderPermissionStatus(cameraPermission)}
+            {renderPermissionStatus(cameraPermission, 'camera')}
           </View>
-        </View>
-      </View>
-
-      <View style={styles.section}>
-        <ThemedText style={styles.sectionTitle}>Account</ThemedText>
-        <View style={[styles.card, { backgroundColor: theme.colors.surfacePrimary }]}>
-          <TouchableOpacity
-            style={[styles.logoutButton, { backgroundColor: "#FF3B30" }]}
-            onPress={handleLogout}
-          >
-            <Ionicons name="log-out-outline" size={24} color="#FFFFFF" />
-            <ThemedText style={styles.logoutText}>Logout</ThemedText>
-          </TouchableOpacity>
         </View>
       </View>
     </ScrollView>
@@ -197,6 +221,7 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: 16,
+    paddingBottom: 32,
   },
   section: {
     marginBottom: 24,
@@ -209,6 +234,11 @@ const styles = StyleSheet.create({
   card: {
     borderRadius: 12,
     padding: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
   },
   themeOption: {
     flexDirection: "row",
@@ -218,7 +248,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   selectedTheme: {
-    backgroundColor: "rgba(0, 0, 0, 0.05)",
+    borderRadius: 8,
   },
   themeText: {
     marginLeft: 12,
@@ -228,9 +258,8 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingVertical: 12,
+    paddingVertical: 14,
     borderBottomWidth: 1,
-    borderBottomColor: "rgba(0, 0, 0, 0.1)",
   },
   permissionInfo: {
     flexDirection: "row",
@@ -239,17 +268,30 @@ const styles = StyleSheet.create({
   permissionIcon: {
     marginRight: 12,
   },
-  logoutButton: {
+  statusIcon: {
+    marginRight: 8,
+  },
+  permissionActions: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    padding: 16,
-    borderRadius: 8,
   },
-  logoutText: {
-    color: "#FFFFFF",
-    fontSize: 16,
-    fontWeight: "bold",
-    marginLeft: 8,
+  permissionButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+  },
+  preferenceRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+  },
+  preferenceInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  preferenceIcon: {
+    marginRight: 12,
   },
 });
