@@ -11,7 +11,7 @@ import {
 import * as FileSystem from "expo-file-system";
 import * as Location from "expo-location";
 import * as MediaLibrary from "expo-media-library";
-import { router } from "expo-router";
+import { router, useLocalSearchParams, useNavigation } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -33,9 +33,21 @@ type LocationData = {
   address: string | null;
 };
 
+type CameraParams = {
+  returnToCreate?: string;
+  index?: string;
+  type?: string;
+};
+
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 
 export default function CameraScreen() {
+  const navigation = useNavigation();
+  const params = useLocalSearchParams<CameraParams>();
+  const returnToCreate = params.returnToCreate === "true";
+  const imageType = params.type as "session" | "participant" | undefined;
+  const imageIndex = params.index ? parseInt(params.index) : -1;
+
   const [facing, setFacing] = useState<CameraType>("back");
   const cameraRef = useRef<CameraView>(null);
   const [isCapturing, setIsCapturing] = useState(false);
@@ -207,6 +219,25 @@ export default function CameraScreen() {
     setShowGrid((current) => !current);
   }, []);
 
+  const returnToCreateForm = useCallback((photoUri: string) => {
+    // Use the navigation object from the react-navigation to return to the previous screen
+    // with the captured photo URI as a parameter
+    if (returnToCreate && navigation.canGoBack()) {
+      // Return to the create form with the photo URI
+      navigation.goBack();
+
+      // Pass the result back to the previous screen
+      if (navigation.getParent()) {
+        // @ts-ignore - TypeScript doesn't know about the setParams method
+        navigation.getParent()?.setParams({
+          capturedPhotoUri: photoUri,
+          imageType: imageType,
+          imageIndex: imageIndex
+        });
+      }
+    }
+  }, [returnToCreate, navigation, imageType, imageIndex]);
+
   const takePicture = useCallback(async () => {
     if (!cameraRef.current || isCapturing) return;
 
@@ -274,13 +305,18 @@ export default function CameraScreen() {
       // Delete original photo
       await FileSystem.deleteAsync(photo.uri, { idempotent: true });
 
-      // Navigate after state update
-      router.push({
-        pathname: `/session/photo-review`,
-        params: {
-          path: encodeURIComponent(photoAsset.uri),
-        },
-      });
+      // If we need to return to the create form
+      if (returnToCreate) {
+        returnToCreateForm(photoAsset.uri);
+      } else {
+        // Navigate to photo review as before
+        router.push({
+          pathname: `/session/photo-review`,
+          params: {
+            path: encodeURIComponent(photoAsset.uri),
+          },
+        });
+      }
     } catch (error) {
       console.error("Error saving photo:", error);
       Alert.alert("Error", "Failed to capture photo. Please try again.");
@@ -291,7 +327,7 @@ export default function CameraScreen() {
     } finally {
       setIsCapturing(false);
     }
-  }, [isCapturing, location, address]);
+  }, [isCapturing, location, address, returnToCreate, returnToCreateForm]);
 
   const navigateToGallery = useCallback(() => {
     router.push("/gallery");

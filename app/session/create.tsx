@@ -18,6 +18,7 @@ import {
   View,
 } from "react-native";
 import { useAuth } from "@/hooks/useAuth";
+import * as ImagePicker from 'expo-image-picker';
 
 const CreateSessionReport = () => {
   const navigation = useNavigation();
@@ -52,7 +53,6 @@ const CreateSessionReport = () => {
     state: "To be auto-filled",
   });
 
-
   useEffect(() => {
     (async () => {
       const { status } = await MediaLibrary.requestPermissionsAsync();
@@ -86,6 +86,44 @@ const CreateSessionReport = () => {
     }
   }, [employeeProfile]);
 
+  useEffect(() => {
+    const unsubscribe = navigation.addListener("focus", () => {
+      const params = navigation?.getParent()?.getParams?.() || {};
+
+      if (
+        params.capturedPhotoUri &&
+        params.imageType &&
+        params.imageIndex !== undefined
+      ) {
+        const type = params.imageType as "session" | "participant";
+        const index = params.imageIndex as number;
+        const uri = params.capturedPhotoUri as string;
+
+        // Verify that the URI is valid and accessible
+        if (uri && uri.startsWith('file://')) {
+          if (type === "session") {
+            const updatedImages = [...sessionImages];
+            updatedImages[index] = { uri };
+            setSessionImages(updatedImages);
+          } else {
+            const updatedImages = [...participantImages];
+            updatedImages[index] = { uri };
+            setParticipantImages(updatedImages);
+          }
+
+          // Clear the params to avoid processing the same photo again
+          navigation.getParent()?.setParams({
+            capturedPhotoUri: undefined,
+            imageType: undefined,
+            imageIndex: undefined,
+          });
+        }
+      }
+    });
+
+    return unsubscribe;
+  }, [navigation, sessionImages, participantImages]);
+
   const handleInputChange = (field: string, value: string | Date) => {
     setFormData({ ...formData, [field]: value });
   };
@@ -101,29 +139,25 @@ const CreateSessionReport = () => {
     type: "session" | "participant",
     index: number
   ) => {
-    if (!hasGalleryPermission) {
-      const { status } = await MediaLibrary.requestPermissionsAsync();
-      if (status !== "granted") {
+    try {
+      // Request permission if needed
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
         Alert.alert(
           "Permission Required",
           "We need gallery access to select photos"
         );
         return;
       }
-    }
 
-    try {
-      const options: MediaLibrary.AssetsOptions = {
-        mediaType: "photo",
-        sortBy: [["creationTime", false]],
-      };
+      // Launch image picker
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: false,
+        quality: 1,
+      });
 
-      if (feetOnStreetAlbum) {
-        options.album = feetOnStreetAlbum;
-      }
-
-      const result = await MediaLibrary.getAssetsAsync(options);
-      if (result.assets && result.assets.length > 0) {
+      if (!result.canceled && result.assets && result.assets.length > 0) {
         const selectedAsset = result.assets[0];
 
         if (type === "session") {
@@ -135,11 +169,6 @@ const CreateSessionReport = () => {
           updatedImages[index] = { uri: selectedAsset.uri };
           setParticipantImages(updatedImages);
         }
-      } else {
-        Alert.alert(
-          "No Photos Found",
-          "No photos found in the Feet On Street album"
-        );
       }
     } catch (error) {
       console.error("Error picking media:", error);
@@ -183,17 +212,9 @@ const CreateSessionReport = () => {
 
   const takePhoto = (type: "session" | "participant", index: number) => {
     navigation.navigate("session/camera", {
-      onCapture: (uri: string) => {
-        if (type === "session") {
-          const updatedImages = [...sessionImages];
-          updatedImages[index] = { uri };
-          setSessionImages(updatedImages);
-        } else {
-          const updatedImages = [...participantImages];
-          updatedImages[index] = { uri };
-          setParticipantImages(updatedImages);
-        }
-      },
+      returnToCreate: "true",
+      type: type,
+      index: index.toString(),
     });
   };
 
@@ -300,7 +321,9 @@ const CreateSessionReport = () => {
                     {
                       borderColor: theme.colors.border,
                       color: theme.colors.textPrimary,
-                      backgroundColor: !disableOnFetch ? theme.colors.surfacePrimary : theme.colors.backgroundAlt,
+                      backgroundColor: !disableOnFetch
+                        ? theme.colors.surfacePrimary
+                        : theme.colors.backgroundAlt,
                     },
                   ]}
                   placeholder="Enter trainer name"
@@ -399,7 +422,9 @@ const CreateSessionReport = () => {
                     {
                       borderColor: theme.colors.border,
                       color: theme.colors.textPrimary,
-                      backgroundColor: !disableOnFetch? theme.colors.surfacePrimary: theme.colors.backgroundAlt,
+                      backgroundColor: !disableOnFetch
+                        ? theme.colors.surfacePrimary
+                        : theme.colors.backgroundAlt,
                     },
                   ]}
                   placeholder="Select employee"
