@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React from "react";
 import {
   Modal,
   View,
@@ -6,101 +6,43 @@ import {
   ScrollView,
   Pressable,
   StyleSheet,
-  TouchableOpacity,
   ActivityIndicator,
 } from "react-native";
 import moment from "moment";
+import {AttendanceRequest } from "@/hooks/useAttendanceRequest";
 
-interface LeaveDetails {
-  name?: string;
-  leave_application_id?: string;
-  leave_type?: string;
-  from_date?: string;
-  to_date?: string;
-  total_leave_days?: number;
-  employee?: string;
-  employee_name?: string;
-  leave_balance?: number;
-  status?: string;
-  reason?: string;
-}
-
-interface LeaveDetailsModalProps {
+interface AttendanceDetailsModalProps {
+  attendanceId: string | null;
   visible: boolean;
-  leaveId: string | null;
-  accessToken: string;
+  attendanceDetails: AttendanceRequest | null;
   onClose: () => void;
   theme: any;
+  calculateDays: (fromDate: string, toDate: string) => number;
+  loading?: boolean;
 }
 
-const LeaveDetailsModal: React.FC<LeaveDetailsModalProps> = ({
+const AttendanceDetailsModal: React.FC<AttendanceDetailsModalProps> = ({
   visible,
-  leaveId,
-  accessToken,
+  attendanceDetails,
   onClose,
   theme,
+  calculateDays,
+  loading = false,
 }) => {
-  const [leaveDetails, setLeaveDetails] = useState<LeaveDetails | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (visible && leaveId) {
-      fetchLeaveDetails(leaveId);
-    } else if (!visible) {
-      setLeaveDetails(null);
-      setError(null);
-    }
-  }, [visible, leaveId]);
-
-  const fetchLeaveDetails = async (id: string) => {
-    setLoading(true);
-    setError(null);
-
-    try {
-      const response = await fetch(
-        `${process.env.EXPO_PUBLIC_BASE_URL}/api/method/hrms.api.get_leave_applications`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            employee: "HR-EMP-00001",
-          }),
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error(`Failed to fetch leave details: ${response.status}`);
-      }
-
-      const data = await response.json();
-      const selectedLeave = data.message.find((leave: LeaveDetails) => leave.name === id);
-
-      if (selectedLeave) {
-        setLeaveDetails(selectedLeave);
-      } else {
-        setError("Leave details not found");
-      }
-    } catch (error: any) {
-      console.error("Error fetching leave details:", error);
-      setError(error.message || "Failed to load leave details");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const formatDate = (dateString: string) => {
+  const formatDate = (dateString?: string) => {
+    if (!dateString) return "N/A";
     const date = moment(dateString);
     return date.format("D MMM YYYY");
   };
 
   const formatDateRange = (fromDate?: string, toDate?: string) => {
     if (!fromDate || !toDate) return "N/A";
-
     return `${formatDate(fromDate)} - ${formatDate(toDate)}`;
+  };
+
+  const getTotalDays = () => {
+    if (!attendanceDetails?.from_date || !attendanceDetails?.to_date) return "N/A";
+    return `${calculateDays(attendanceDetails.from_date, attendanceDetails.to_date)} days`;
   };
 
   return (
@@ -123,7 +65,7 @@ const LeaveDetailsModal: React.FC<LeaveDetailsModalProps> = ({
             <Text
               style={[styles.modalTitle, { color: theme.colors.textPrimary }]}
             >
-              Leave Application
+              Attendance Request
             </Text>
           </View>
 
@@ -134,29 +76,13 @@ const LeaveDetailsModal: React.FC<LeaveDetailsModalProps> = ({
                 color={theme.brandColors.primary}
               />
             </View>
-          ) : error ? (
+          ) : !attendanceDetails ? (
             <View style={styles.errorContainer}>
               <Text
                 style={[styles.errorText, { color: theme.statusColors.error }]}
               >
-                {error}
+                Attendance details not available
               </Text>
-              <TouchableOpacity
-                style={[
-                  styles.retryButton,
-                  { backgroundColor: theme.colors.buttonPrimary },
-                ]}
-                onPress={() => leaveId && fetchLeaveDetails(leaveId)}
-              >
-                <Text
-                  style={[
-                    styles.retryButtonText,
-                    { color: theme.colors.textInverted },
-                  ]}
-                >
-                  Retry
-                </Text>
-              </TouchableOpacity>
             </View>
           ) : (
             <ScrollView style={styles.modalContent}>
@@ -175,7 +101,7 @@ const LeaveDetailsModal: React.FC<LeaveDetailsModalProps> = ({
                     { color: theme.colors.textPrimary },
                   ]}
                 >
-                  {leaveDetails?.name || "N/A"}
+                  {attendanceDetails.name || "N/A"}
                 </Text>
               </View>
 
@@ -186,7 +112,7 @@ const LeaveDetailsModal: React.FC<LeaveDetailsModalProps> = ({
                     { color: theme.colors.textSecondary },
                   ]}
                 >
-                  Leave Type
+                  Type
                 </Text>
                 <Text
                   style={[
@@ -194,7 +120,7 @@ const LeaveDetailsModal: React.FC<LeaveDetailsModalProps> = ({
                     { color: theme.colors.textPrimary },
                   ]}
                 >
-                  {leaveDetails?.leave_type || "N/A"}
+                  {attendanceDetails.reason || "N/A"}
                 </Text>
               </View>
 
@@ -205,7 +131,7 @@ const LeaveDetailsModal: React.FC<LeaveDetailsModalProps> = ({
                     { color: theme.colors.textSecondary },
                   ]}
                 >
-                  Leave Dates
+                  Request Dates
                 </Text>
                 <Text
                   style={[
@@ -214,8 +140,8 @@ const LeaveDetailsModal: React.FC<LeaveDetailsModalProps> = ({
                   ]}
                 >
                   {formatDateRange(
-                    leaveDetails?.from_date,
-                    leaveDetails?.to_date
+                    attendanceDetails.from_date,
+                    attendanceDetails.to_date
                   )}
                 </Text>
               </View>
@@ -227,7 +153,7 @@ const LeaveDetailsModal: React.FC<LeaveDetailsModalProps> = ({
                     { color: theme.colors.textSecondary },
                   ]}
                 >
-                  Total Leave Days
+                  Total Days
                 </Text>
                 <Text
                   style={[
@@ -235,7 +161,7 @@ const LeaveDetailsModal: React.FC<LeaveDetailsModalProps> = ({
                     { color: theme.colors.textPrimary },
                   ]}
                 >
-                  {leaveDetails?.total_leave_days || "0"}
+                  {getTotalDays()}
                 </Text>
               </View>
 
@@ -246,7 +172,7 @@ const LeaveDetailsModal: React.FC<LeaveDetailsModalProps> = ({
                     { color: theme.colors.textSecondary },
                   ]}
                 >
-                  Employee
+                  Shift
                 </Text>
                 <Text
                   style={[
@@ -254,78 +180,10 @@ const LeaveDetailsModal: React.FC<LeaveDetailsModalProps> = ({
                     { color: theme.colors.textPrimary },
                   ]}
                 >
-                  {leaveDetails?.employee_name || "N/A"}
+                  {attendanceDetails.shift || "N/A"}
                 </Text>
               </View>
 
-              <View style={styles.detailRow}>
-                <Text
-                  style={[
-                    styles.detailLabel,
-                    { color: theme.colors.textSecondary },
-                  ]}
-                >
-                  Leave Balance
-                </Text>
-                <Text
-                  style={[
-                    styles.detailValue,
-                    { color: theme.colors.textPrimary },
-                  ]}
-                >
-                  {leaveDetails?.leave_balance || "0"}
-                </Text>
-              </View>
-
-              <View style={styles.detailRow}>
-                <Text
-                  style={[
-                    styles.detailLabel,
-                    { color: theme.colors.textSecondary },
-                  ]}
-                >
-                  Status
-                </Text>
-                <View style={styles.statusContainer}>
-                  <Text
-                    style={[
-                      styles.statusText,
-                      {
-                        color: theme.colors.textInverted,
-                        backgroundColor:
-                          leaveDetails?.status === "Open"
-                            ? theme.statusColors.pending
-                            : leaveDetails?.status === "Approved"
-                            ? theme.statusColors.success
-                            : theme.statusColors.error,
-                      },
-                    ]}
-                  >
-                    {leaveDetails?.status || "Pending"}
-                  </Text>
-                </View>
-              </View>
-
-              <View style={styles.reasonContainer}>
-                <Text
-                  style={[
-                    styles.detailLabel,
-                    { color: theme.colors.textSecondary },
-                  ]}
-                >
-                  Reason
-                </Text>
-                <View style={styles.reasonBox}>
-                  <Text
-                    style={[
-                      styles.reasonText,
-                      { color: theme.colors.textPrimary },
-                    ]}
-                  >
-                    {leaveDetails?.reason || "No reason provided"}
-                  </Text>
-                </View>
-              </View>
             </ScrollView>
           )}
         </View>
@@ -380,15 +238,6 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     textAlign: "center",
   },
-  retryButton: {
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 12,
-  },
-  retryButtonText: {
-    fontSize: 16,
-    fontWeight: "600",
-  },
   modalContent: {
     padding: 16,
   },
@@ -436,4 +285,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default LeaveDetailsModal;
+export default AttendanceDetailsModal;
