@@ -41,8 +41,7 @@ export default function HomeScreen() {
         readerMode: false,
       });
     } else {
-      alert(`Don't know how to open this URL: ${path}`);
-    }
+      alert(`Don't know how to open this URL: ${fullUrl}`);
   };
 
 // @ts-expect-error
