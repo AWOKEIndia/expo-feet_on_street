@@ -8,10 +8,10 @@ import {
   StyleSheet,
   Text,
   TouchableOpacity,
-  View,
-  Linking
+  View
 } from "react-native";
 import { useRouter } from "expo-router";
+import * as WebBrowser from "expo-web-browser";
 
 
 const quickLinks = [
@@ -30,12 +30,18 @@ export default function HomeScreen() {
 
   const openLink = async (path: string) => {
     const fullUrl = `${process.env.EXPO_PUBLIC_BASE_URL}${path}`;
-    const supported = await Linking.canOpenURL(fullUrl);
-    if (supported) {
-      await Linking.openURL(fullUrl);
+    try {
+      const url = new URL(fullUrl);
+      const result = await WebBrowser.openBrowserAsync(url.toString(), {
+        toolbarColor: theme.colors.background,
+        controlsColor: theme.brandColors.primary,
+        dismissButtonStyle: "cancel",
+        showTitle: true,
+        enableBarCollapsing: true,
+        readerMode: false,
+      });
     } else {
       alert(`Don't know how to open this URL: ${fullUrl}`);
-    }
   };
 
 // @ts-expect-error
