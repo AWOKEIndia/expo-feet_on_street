@@ -30,8 +30,9 @@ export default function HomeScreen() {
 
   const openLink = async (path: string) => {
     const fullUrl = `${process.env.EXPO_PUBLIC_BASE_URL}${path}`;
-    if (fullUrl.startsWith("http")) {
-      const result = await WebBrowser.openBrowserAsync(fullUrl, {
+    try {
+      const url = new URL(fullUrl);
+      const result = await WebBrowser.openBrowserAsync(url.toString(), {
         toolbarColor: theme.colors.background,
         controlsColor: theme.brandColors.primary,
         dismissButtonStyle: "cancel",
