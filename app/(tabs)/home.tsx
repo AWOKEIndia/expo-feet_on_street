@@ -32,7 +32,7 @@ export default function HomeScreen() {
     const fullUrl = `${process.env.EXPO_PUBLIC_BASE_URL}${path}`;
     try {
       const url = new URL(fullUrl);
-      const result = await WebBrowser.openBrowserAsync(url.toString(), {
+      await WebBrowser.openBrowserAsync(url.toString(), {
         toolbarColor: theme.colors.background,
         controlsColor: theme.brandColors.primary,
         dismissButtonStyle: "cancel",
@@ -40,8 +40,9 @@ export default function HomeScreen() {
         enableBarCollapsing: true,
         readerMode: false,
       });
-    } else {
+    } catch {
       alert(`Don't know how to open this URL: ${fullUrl}`);
+    }
   };
 
 // @ts-expect-error
