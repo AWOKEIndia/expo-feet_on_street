@@ -11,48 +11,63 @@ import {
   Pressable,
   Keyboard,
   BackHandler,
+  ActivityIndicator,
 } from "react-native";
 import { useTheme } from "@/contexts/ThemeContext";
 import { Ionicons } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { AppState } from "react-native";
+import useLeaveApprovers from "@/hooks/useLeaveApprover";
+import { useAuthContext } from "@/contexts/AuthContext";
 
-interface AttendanceRequestFormProps {
-  onSubmit: (data: AttendanceRequestData) => void;
+interface LeaveRequestFormProps {
+  onSubmit: (data: LeaveRequestData) => void;
   onCancel: () => void;
 }
 
-interface AttendanceRequestData {
+interface LeaveRequestData {
+  leaveType: string;
   fromDate: Date | null;
   toDate: Date | null;
   isHalfDay: boolean;
-  includeHolidays: boolean;
-  shift: string;
   reason: string;
-  explanation: string;
+  leaveApprover: string;
+  leaveApproverName: string;
+  attachments: any[];
 }
 
-const AttendanceRequestForm: React.FC<AttendanceRequestFormProps> = ({
+const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
   onSubmit,
   onCancel,
 }) => {
   const { theme, isDark } = useTheme();
+  const { accessToken, employeeProfile } = useAuthContext();
 
-  const [formData, setFormData] = useState<AttendanceRequestData>({
+  const [formData, setFormData] = useState<LeaveRequestData>({
+    leaveType: "",
     fromDate: null,
     toDate: null,
     isHalfDay: false,
-    includeHolidays: false,
-    shift: "",
     reason: "",
-    explanation: "",
+    leaveApprover: "",
+    leaveApproverName: "",
+    attachments: [],
   });
 
   const [showFromDatePicker, setShowFromDatePicker] = useState(false);
   const [showToDatePicker, setShowToDatePicker] = useState(false);
-  const [showShiftDropdown, setShowShiftDropdown] = useState(false);
-  const [showReasonDropdown, setShowReasonDropdown] = useState(false);
+  const [showLeaveTypeDropdown, setShowLeaveTypeDropdown] = useState(false);
+  const [showApproverDropdown, setShowApproverDropdown] = useState(false);
   const [appState, setAppState] = useState(AppState.currentState);
+
+
+  // Use the leave approvers hook
+  const {
+    approvalDetails,
+    loading: loadingApprovers,
+    error: approversError,
+    refresh: refreshApprovers
+  } = useLeaveApprovers(accessToken as string, employeeProfile?.name as string);
 
   // Handle app state changes to properly close date pickers if app goes to background
   useEffect(() => {
@@ -69,8 +84,37 @@ const AttendanceRequestForm: React.FC<AttendanceRequestFormProps> = ({
     };
   }, [appState]);
 
-  const shifts = ["Day", "CFL Day"];
-  const reasons = ["Work From Home", "On Duty"];
+  // Sample data for leave types
+  const leaveTypes = ["Annual Leave", "Sick Leave", "Work From Home", "Casual Leave"];
+
+  // Format the approvers from the hook response
+  const getFormattedApprovers = () => {
+    if (!approvalDetails) return [];
+
+    const formattedApprovers = [];
+
+    // Add leave approvers if available
+    if (approvalDetails.leave_approvers && approvalDetails.leave_approvers.length > 0) {
+      formattedApprovers.push(
+        ...approvalDetails.leave_approvers.map(approver => ({
+          email: approver.user,
+          name: approver.name
+        }))
+      );
+    }
+
+    // Add department approvers if available
+    if (approvalDetails.department_approvers && approvalDetails.department_approvers.length > 0) {
+      formattedApprovers.push(
+        ...approvalDetails.department_approvers.map(approver => ({
+          email: approver.user,
+          name: approver.name
+        }))
+      );
+    }
+
+    return formattedApprovers;
+  };
 
   const formatDate = (date: Date | null): string => {
     if (!date) return "";
@@ -98,7 +142,7 @@ const AttendanceRequestForm: React.FC<AttendanceRequestFormProps> = ({
     }
   };
 
-  const toggleCheckbox = (field: "isHalfDay" | "includeHolidays") => {
+  const toggleCheckbox = (field: "isHalfDay") => {
     setFormData({ ...formData, [field]: !formData[field] });
   };
 
@@ -108,11 +152,11 @@ const AttendanceRequestForm: React.FC<AttendanceRequestFormProps> = ({
 
   // For handling dropdown outside tap
   useEffect(() => {
-    if (showShiftDropdown || showReasonDropdown) {
+    if (showLeaveTypeDropdown || showApproverDropdown) {
       // Create listener for touches outside the dropdown
       const handleOutsideTouch = () => {
-        setShowShiftDropdown(false);
-        setShowReasonDropdown(false);
+        setShowLeaveTypeDropdown(false);
+        setShowApproverDropdown(false);
       };
 
       // Use Keyboard API to detect touches outside our components
@@ -125,7 +169,7 @@ const AttendanceRequestForm: React.FC<AttendanceRequestFormProps> = ({
       const backHandler = BackHandler.addEventListener(
         "hardwareBackPress",
         () => {
-          if (showShiftDropdown || showReasonDropdown) {
+          if (showLeaveTypeDropdown || showApproverDropdown) {
             handleOutsideTouch();
             return true;
           }
@@ -138,13 +182,12 @@ const AttendanceRequestForm: React.FC<AttendanceRequestFormProps> = ({
         backHandler.remove();
       };
     }
-  }, [showShiftDropdown, showReasonDropdown]);
+  }, [showLeaveTypeDropdown, showApproverDropdown]);
 
   // Show Android date picker
   const showAndroidDatePicker = (field: "fromDate" | "toDate") => {
-    // Close any open dropdown first
-    setShowShiftDropdown(false);
-    setShowReasonDropdown(false);
+    setShowLeaveTypeDropdown(false);
+    setShowApproverDropdown(false);
 
     if (field === "fromDate") {
       setShowFromDatePicker(true);
@@ -154,6 +197,9 @@ const AttendanceRequestForm: React.FC<AttendanceRequestFormProps> = ({
       setShowFromDatePicker(false);
     }
   };
+
+  // Get the formatted approvers list
+  const approvers = getFormattedApprovers();
 
   return (
     <KeyboardAvoidingView
@@ -177,12 +223,109 @@ const AttendanceRequestForm: React.FC<AttendanceRequestFormProps> = ({
           />
         </TouchableOpacity>
         <Text style={[styles.title, { color: theme.colors.textPrimary }]}>
-          New Attendance Request
+          New Leave Application
         </Text>
       </View>
       <ScrollView
         style={[styles.form, { backgroundColor: theme.colors.background }]}
       >
+        {/* Leave Type Field */}
+        <View style={styles.fieldContainer}>
+          <Text style={[styles.label, { color: theme.colors.textPrimary }]}>
+            Leave Type <Text style={{ color: theme.statusColors.error }}>*</Text>
+          </Text>
+          <TouchableOpacity
+            style={[
+              styles.dropdownContainer,
+              {
+                backgroundColor: theme.colors.inputBackground,
+                borderColor: showLeaveTypeDropdown
+                  ? theme.colors.inputBorderFocus
+                  : theme.colors.inputBorder,
+              },
+            ]}
+            onPress={() => {
+              setShowLeaveTypeDropdown(!showLeaveTypeDropdown);
+              setShowApproverDropdown(false);
+            }}
+          >
+            <Text
+              style={[
+                styles.inputText,
+                {
+                  color: formData.leaveType
+                    ? theme.colors.textPrimary
+                    : theme.colors.inputPlaceholder,
+                },
+              ]}
+            >
+              {formData.leaveType || "Select Leave Type"}
+            </Text>
+            <Ionicons
+              name={showLeaveTypeDropdown ? "chevron-up" : "chevron-down"}
+              size={20}
+              color={theme.colors.iconSecondary}
+            />
+          </TouchableOpacity>
+
+          {showLeaveTypeDropdown && (
+            <View
+              style={[
+                styles.dropdown,
+                {
+                  backgroundColor: theme.colors.surfacePrimary,
+                  borderColor: theme.colors.border,
+                  shadowColor: theme.colors.shadow,
+                  elevation: 4,
+                },
+              ]}
+            >
+              {leaveTypes.map((type, index) => (
+                <TouchableOpacity
+                  key={index}
+                  style={[
+                    styles.dropdownItem,
+                    {
+                      borderBottomColor:
+                        index < leaveTypes.length - 1
+                          ? theme.colors.divider
+                          : "transparent",
+                      borderBottomWidth: index < leaveTypes.length - 1 ? 1 : 0,
+                      backgroundColor:
+                        formData.leaveType === type
+                          ? theme.colors.highlight
+                          : theme.colors.surfacePrimary,
+                    },
+                  ]}
+                  onPress={() => {
+                    setFormData({ ...formData, leaveType: type });
+                    setShowLeaveTypeDropdown(false);
+                  }}
+                >
+                  <Text
+                    style={[
+                      styles.dropdownItemText,
+                      { color: theme.colors.textPrimary },
+                    ]}
+                  >
+                    {type}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
+        </View>
+
+        {/* Section Divider */}
+        <View style={styles.sectionContainer}>
+          <Text
+            style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}
+          >
+            Dates & Reason
+          </Text>
+        </View>
+
+        {/* From Date Field */}
         <View style={styles.fieldContainer}>
           <Text style={[styles.label, { color: theme.colors.textPrimary }]}>
             From Date <Text style={{ color: theme.statusColors.error }}>*</Text>
@@ -224,15 +367,17 @@ const AttendanceRequestForm: React.FC<AttendanceRequestFormProps> = ({
               testID="fromDatePicker"
               value={formData.fromDate || new Date()}
               mode="date"
-              display="default" // Use default for Android (calendar)
+              display="default"
               onChange={(event, date) =>
                 handleDateChange("fromDate", event, date)
               }
               minimumDate={new Date()}
+
             />
           )}
         </View>
 
+        {/* To Date Field */}
         <View style={styles.fieldContainer}>
           <Text style={[styles.label, { color: theme.colors.textPrimary }]}>
             To Date <Text style={{ color: theme.statusColors.error }}>*</Text>
@@ -281,6 +426,7 @@ const AttendanceRequestForm: React.FC<AttendanceRequestFormProps> = ({
           )}
         </View>
 
+        {/* Half Day Checkbox */}
         <View style={styles.checkboxRow}>
           <Pressable
             style={styles.checkboxContainer}
@@ -316,223 +462,10 @@ const AttendanceRequestForm: React.FC<AttendanceRequestFormProps> = ({
           </Text>
         </View>
 
-        <View style={styles.checkboxRow}>
-          <Pressable
-            style={styles.checkboxContainer}
-            onPress={() => toggleCheckbox("includeHolidays")}
-          >
-            <View
-              style={{
-                width: 20,
-                height: 20,
-                borderWidth: 1,
-                borderColor: theme.colors.checkboxBorder,
-                backgroundColor: formData.includeHolidays
-                  ? theme.colors.checkboxFill
-                  : theme.colors.inputBackground,
-                alignItems: "center",
-                justifyContent: "center",
-                borderRadius: theme.borderRadius.xs,
-              }}
-            >
-              {formData.includeHolidays && (
-                <Ionicons
-                  name="checkmark"
-                  size={16}
-                  color={theme.baseColors.white}
-                />
-              )}
-            </View>
-          </Pressable>
-          <Text
-            style={[styles.checkboxLabel, { color: theme.colors.textPrimary }]}
-          >
-            Include Holidays
-          </Text>
-        </View>
-
-        {/* Rest of the form remains the same */}
+        {/* Reason Field */}
         <View style={styles.fieldContainer}>
           <Text style={[styles.label, { color: theme.colors.textPrimary }]}>
-            Shift
-          </Text>
-          <TouchableOpacity
-            style={[
-              styles.dropdownContainer,
-              {
-                backgroundColor: theme.colors.inputBackground,
-                borderColor: showShiftDropdown
-                  ? theme.colors.inputBorderFocus
-                  : theme.colors.inputBorder,
-              },
-            ]}
-            onPress={() => {
-              setShowShiftDropdown(!showShiftDropdown);
-              setShowReasonDropdown(false);
-            }}
-          >
-            <Text
-              style={[
-                styles.inputText,
-                {
-                  color: formData.shift
-                    ? theme.colors.textPrimary
-                    : theme.colors.inputPlaceholder,
-                },
-              ]}
-            >
-              {formData.shift || "Select Shift Type"}
-            </Text>
-            <Ionicons
-              name={showShiftDropdown ? "chevron-up" : "chevron-down"}
-              size={20}
-              color={theme.colors.iconSecondary}
-            />
-          </TouchableOpacity>
-
-          {showShiftDropdown && (
-            <View
-              style={[
-                styles.dropdown,
-                {
-                  backgroundColor: theme.colors.surfacePrimary,
-                  borderColor: theme.colors.border,
-                  shadowColor: theme.colors.shadow,
-                  elevation: 4,
-                },
-              ]}
-            >
-              {shifts.map((shift, index) => (
-                <TouchableOpacity
-                  key={index}
-                  style={[
-                    styles.dropdownItem,
-                    {
-                      borderBottomColor:
-                        index < shifts.length - 1
-                          ? theme.colors.divider
-                          : "transparent",
-                      borderBottomWidth: index < shifts.length - 1 ? 1 : 0,
-                      backgroundColor:
-                        formData.shift === shift
-                          ? theme.colors.highlight
-                          : theme.colors.surfacePrimary,
-                    },
-                  ]}
-                  onPress={() => {
-                    setFormData({ ...formData, shift });
-                    setShowShiftDropdown(false);
-                  }}
-                >
-                  <Text
-                    style={[
-                      styles.dropdownItemText,
-                      { color: theme.colors.textPrimary },
-                    ]}
-                  >
-                    {shift}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          )}
-        </View>
-
-        <View style={styles.fieldContainer}>
-          <Text
-            style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}
-          >
             Reason
-          </Text>
-          <Text style={[styles.label, { color: theme.colors.textPrimary }]}>
-            Reason <Text style={{ color: theme.statusColors.error }}>*</Text>
-          </Text>
-          <TouchableOpacity
-            style={[
-              styles.dropdownContainer,
-              {
-                backgroundColor: theme.colors.inputBackground,
-                borderColor: showReasonDropdown
-                  ? theme.colors.inputBorderFocus
-                  : theme.colors.inputBorder,
-              },
-            ]}
-            activeOpacity={0.8}
-            onPress={() => {
-              setShowReasonDropdown(!showReasonDropdown);
-              setShowShiftDropdown(false);
-            }}
-          >
-            <Text
-              style={[
-                styles.inputText,
-                {
-                  color: formData.reason
-                    ? theme.colors.textPrimary
-                    : theme.colors.inputPlaceholder,
-                },
-              ]}
-            >
-              {formData.reason || "Select Reason"}
-            </Text>
-            <Ionicons
-              name={showReasonDropdown ? "chevron-up" : "chevron-down"}
-              size={20}
-              color={theme.colors.iconSecondary}
-            />
-          </TouchableOpacity>
-
-          {showReasonDropdown && (
-            <View
-              style={[
-                styles.dropdown,
-                {
-                  backgroundColor: theme.colors.surfacePrimary,
-                  borderColor: theme.colors.border,
-                  shadowColor: theme.colors.shadow,
-                  elevation: 4,
-                },
-              ]}
-            >
-              {reasons.map((reason, index) => (
-                <TouchableOpacity
-                  key={index}
-                  style={[
-                    styles.dropdownItem,
-                    {
-                      borderBottomColor:
-                        index < reasons.length - 1
-                          ? theme.colors.divider
-                          : "transparent",
-                      borderBottomWidth: index < reasons.length - 1 ? 1 : 0,
-                      backgroundColor:
-                        formData.reason === reason
-                          ? theme.colors.highlight
-                          : theme.colors.surfacePrimary,
-                    },
-                  ]}
-                  onPress={() => {
-                    setFormData({ ...formData, reason });
-                    setShowReasonDropdown(false);
-                  }}
-                >
-                  <Text
-                    style={[
-                      styles.dropdownItemText,
-                      { color: theme.colors.textPrimary },
-                    ]}
-                  >
-                    {reason}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          )}
-        </View>
-
-        <View style={styles.fieldContainer}>
-          <Text style={[styles.label, { color: theme.colors.textPrimary }]}>
-            Explanation
           </Text>
           <TextInput
             style={[
@@ -545,13 +478,202 @@ const AttendanceRequestForm: React.FC<AttendanceRequestFormProps> = ({
               },
             ]}
             multiline
-            placeholder="Enter Explanation"
+            placeholder="Enter Reason"
             placeholderTextColor={theme.colors.inputPlaceholder}
-            value={formData.explanation}
+            value={formData.reason}
             onChangeText={(text) =>
-              setFormData({ ...formData, explanation: text })
+              setFormData({ ...formData, reason: text })
             }
           />
+        </View>
+
+        {/* Section Divider */}
+        <View style={styles.sectionContainer}>
+          <Text
+            style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}
+          >
+            Approval
+          </Text>
+        </View>
+
+        {/* Leave Approver Field */}
+        <View style={styles.fieldContainer}>
+          <Text style={[styles.label, { color: theme.colors.textPrimary }]}>
+            Leave Approver <Text style={{ color: theme.statusColors.error }}>*</Text>
+          </Text>
+          <TouchableOpacity
+            style={[
+              styles.dropdownContainer,
+              {
+                backgroundColor: theme.colors.inputBackground,
+                borderColor: showApproverDropdown
+                  ? theme.colors.inputBorderFocus
+                  : theme.colors.inputBorder,
+              },
+            ]}
+            onPress={() => {
+              setShowApproverDropdown(!showApproverDropdown);
+              setShowLeaveTypeDropdown(false);
+            }}
+          >
+            {loadingApprovers ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="small" color={theme.colors.textPrimary} />
+                <Text style={[styles.inputText, { color: theme.colors.inputPlaceholder }]}>
+                  Loading approvers...
+                </Text>
+              </View>
+            ) : (
+              <>
+                <Text
+                  style={[
+                    styles.inputText,
+                    {
+                      color: formData.leaveApprover
+                        ? theme.colors.textPrimary
+                        : theme.colors.inputPlaceholder,
+                    },
+                  ]}
+                >
+                  {formData.leaveApprover
+                    ? `${formData.leaveApproverName}`
+                    : "Select Approver"}
+                </Text>
+                <Ionicons
+                  name={showApproverDropdown ? "chevron-up" : "chevron-down"}
+                  size={20}
+                  color={theme.colors.iconSecondary}
+                />
+              </>
+            )}
+          </TouchableOpacity>
+
+          {showApproverDropdown && !loadingApprovers && (
+            <View
+              style={[
+                styles.dropdown,
+                {
+                  backgroundColor: theme.colors.surfacePrimary,
+                  borderColor: theme.colors.border,
+                  shadowColor: theme.colors.shadow,
+                  elevation: 4,
+                },
+              ]}
+            >
+              {approversError ? (
+                <TouchableOpacity
+                  style={styles.dropdownItem}
+                  onPress={refreshApprovers}
+                >
+                  <Text style={[styles.dropdownItemText, { color: theme.statusColors.error }]}>
+                    Error loading approvers. Tap to retry.
+                  </Text>
+                </TouchableOpacity>
+              ) : approvers.length === 0 ? (
+                <View style={styles.dropdownItem}>
+                  <Text style={[styles.dropdownItemText, { color: theme.colors.textSecondary }]}>
+                    No approvers found
+                  </Text>
+                </View>
+              ) : (
+                approvers.map((approver, index) => (
+                  <TouchableOpacity
+                    key={index}
+                    style={[
+                      styles.dropdownItem,
+                      {
+                        borderBottomColor:
+                          index < approvers.length - 1
+                            ? theme.colors.divider
+                            : "transparent",
+                        borderBottomWidth: index < approvers.length - 1 ? 1 : 0,
+                        backgroundColor:
+                          formData.leaveApprover === approver.email
+                            ? theme.colors.highlight
+                            : theme.colors.surfacePrimary,
+                      },
+                    ]}
+                    onPress={() => {
+                      setFormData({
+                        ...formData,
+                        leaveApprover: approver.email,
+                        leaveApproverName: approver.name,
+                      });
+                      setShowApproverDropdown(false);
+                    }}
+                  >
+                    <Text
+                      style={[
+                        styles.dropdownItemText,
+                        { color: theme.colors.textPrimary },
+                      ]}
+                    >
+                      {approver.name}
+                    </Text>
+                  </TouchableOpacity>
+                ))
+              )}
+            </View>
+          )}
+        </View>
+
+        {/* Leave Approver Name Field */}
+        <View style={styles.fieldContainer}>
+          <Text style={[styles.label, { color: theme.colors.textPrimary }]}>
+            Leave Approver Name
+          </Text>
+          <TextInput
+            style={[
+              styles.input,
+              {
+                backgroundColor: theme.colors.inputBackground,
+                borderColor: theme.colors.inputBorder,
+                color: theme.colors.textPrimary,
+              },
+            ]}
+            value={formData.leaveApproverName}
+            editable={false}
+            placeholderTextColor={theme.colors.inputPlaceholder}
+          />
+        </View>
+
+        {/* Section Divider */}
+        <View style={styles.sectionContainer}>
+          <Text
+            style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}
+          >
+            Attachments
+          </Text>
+        </View>
+
+        {/* Attachments Field */}
+        <View style={styles.fieldContainer}>
+          <TouchableOpacity
+            style={[
+              styles.attachmentContainer,
+              {
+                backgroundColor: theme.colors.inputBackground,
+                borderColor: theme.colors.inputBorder,
+              },
+            ]}
+            // Implement attachment handling logic here
+          >
+            <View style={styles.attachmentContent}>
+              <Ionicons
+                name="cloud-upload-outline"
+                size={24}
+                color={theme.colors.iconSecondary}
+              />
+              <Text
+                style={[
+                  styles.attachmentText,
+                  { color: theme.colors.textSecondary },
+                ]}
+              >
+                Upload images or documents
+              </Text>
+            </View>
+          </TouchableOpacity>
         </View>
       </ScrollView>
 
@@ -608,8 +730,16 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   fieldContainer: {
-    marginBottom: 24,
+    marginBottom: 20,
     position: "relative",
+  },
+  sectionContainer: {
+    marginBottom: 16,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: "500",
+    marginBottom: 8,
   },
   label: {
     fontSize: 16,
@@ -656,11 +786,6 @@ const styles = StyleSheet.create({
   checkboxLabel: {
     fontSize: 14,
   },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    marginBottom: 16,
-  },
   dropdown: {
     position: "absolute",
     top: "100%",
@@ -678,6 +803,22 @@ const styles = StyleSheet.create({
   dropdownItemText: {
     fontSize: 14,
   },
+  attachmentContainer: {
+    borderWidth: 1,
+    borderStyle: "dashed",
+    borderRadius: 16,
+    padding: 24,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  attachmentContent: {
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  attachmentText: {
+    marginTop: 8,
+    fontSize: 14,
+  },
   saveButtonContainer: {
     padding: 12,
   },
@@ -690,6 +831,11 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "500",
   },
+  loadingContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
 });
 
-export default AttendanceRequestForm;
+export default LeaveRequestForm;
