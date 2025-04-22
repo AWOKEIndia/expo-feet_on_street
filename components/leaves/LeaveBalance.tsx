@@ -42,11 +42,7 @@ const LeaveBalance = ({
   const [isLeaveFormVisible, setIsLeaveFormVisible] = useState(false);
 
   const handleLeaveFormSubmit = (data: any) => {
-    console.log("Leave request submitted:", data);
-    // Here you would typically send the data to your backend
-    // Then refresh the leave balances
     refresh();
-    // Close the form
     setIsLeaveFormVisible(false);
   };
 

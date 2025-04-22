@@ -229,14 +229,6 @@ const AttendanceRequestForm: React.FC<AttendanceRequestFormProps> = ({
                 handleDateChange("fromDate", event, date)
               }
               minimumDate={new Date()}
-              // Android styling props
-              themeVariant={isDark ? "dark" : "light"}
-              positiveButtonLabel="OK"
-              negativeButtonLabel="Cancel"
-              // These colors will be used for the calendar header and selected date
-              accentColor={
-                isDark ? theme.colors.textAccent : theme.brandColors.primary
-              }
             />
           )}
         </View>
@@ -280,19 +272,11 @@ const AttendanceRequestForm: React.FC<AttendanceRequestFormProps> = ({
               testID="toDatePicker"
               value={formData.toDate || formData.fromDate || new Date()}
               mode="date"
-              display="default" // Use default for Android (calendar)
+              display="default"
               onChange={(event, date) =>
                 handleDateChange("toDate", event, date)
               }
               minimumDate={formData.fromDate || new Date()}
-              // Android styling props
-              themeVariant={isDark ? "dark" : "light"}
-              positiveButtonLabel="OK"
-              negativeButtonLabel="Cancel"
-              // These colors will be used for the calendar header and selected date
-              accentColor={
-                isDark ? theme.colors.textAccent : theme.brandColors.primary
-              }
             />
           )}
         </View>

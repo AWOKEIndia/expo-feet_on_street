@@ -11,11 +11,14 @@ import {
   Pressable,
   Keyboard,
   BackHandler,
+  ActivityIndicator,
 } from "react-native";
 import { useTheme } from "@/contexts/ThemeContext";
 import { Ionicons } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { AppState } from "react-native";
+import useLeaveApprovers from "@/hooks/useLeaveApprover";
+import { useAuthContext } from "@/contexts/AuthContext";
 
 interface LeaveRequestFormProps {
   onSubmit: (data: LeaveRequestData) => void;
@@ -38,6 +41,7 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
   onCancel,
 }) => {
   const { theme, isDark } = useTheme();
+  const { accessToken, employeeProfile } = useAuthContext();
 
   const [formData, setFormData] = useState<LeaveRequestData>({
     leaveType: "",
@@ -56,6 +60,15 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
   const [showApproverDropdown, setShowApproverDropdown] = useState(false);
   const [appState, setAppState] = useState(AppState.currentState);
 
+
+  // Use the leave approvers hook
+  const {
+    approvalDetails,
+    loading: loadingApprovers,
+    error: approversError,
+    refresh: refreshApprovers
+  } = useLeaveApprovers(accessToken as string, employeeProfile?.name as string);
+
   // Handle app state changes to properly close date pickers if app goes to background
   useEffect(() => {
     const subscription = AppState.addEventListener("change", (nextAppState) => {
@@ -71,12 +84,37 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
     };
   }, [appState]);
 
-  // Sample data for dropdowns
+  // Sample data for leave types
   const leaveTypes = ["Annual Leave", "Sick Leave", "Work From Home", "Casual Leave"];
-  const approvers = [
-    { email: "it@awokeindia.com", name: "Apavayan Sinha" },
-    { email: "hr@awokeindia.com", name: "HR Department" },
-  ];
+
+  // Format the approvers from the hook response
+  const getFormattedApprovers = () => {
+    if (!approvalDetails) return [];
+
+    const formattedApprovers = [];
+
+    // Add leave approvers if available
+    if (approvalDetails.leave_approvers && approvalDetails.leave_approvers.length > 0) {
+      formattedApprovers.push(
+        ...approvalDetails.leave_approvers.map(approver => ({
+          email: approver.user,
+          name: approver.name
+        }))
+      );
+    }
+
+    // Add department approvers if available
+    if (approvalDetails.department_approvers && approvalDetails.department_approvers.length > 0) {
+      formattedApprovers.push(
+        ...approvalDetails.department_approvers.map(approver => ({
+          email: approver.user,
+          name: approver.name
+        }))
+      );
+    }
+
+    return formattedApprovers;
+  };
 
   const formatDate = (date: Date | null): string => {
     if (!date) return "";
@@ -148,7 +186,6 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
 
   // Show Android date picker
   const showAndroidDatePicker = (field: "fromDate" | "toDate") => {
-    // Close any open dropdown first
     setShowLeaveTypeDropdown(false);
     setShowApproverDropdown(false);
 
@@ -160,6 +197,9 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
       setShowFromDatePicker(false);
     }
   };
+
+  // Get the formatted approvers list
+  const approvers = getFormattedApprovers();
 
   return (
     <KeyboardAvoidingView
@@ -327,19 +367,12 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
               testID="fromDatePicker"
               value={formData.fromDate || new Date()}
               mode="date"
-              display="default" // Use default for Android (calendar)
+              display="default"
               onChange={(event, date) =>
                 handleDateChange("fromDate", event, date)
               }
               minimumDate={new Date()}
-              // Android styling props
-              themeVariant={isDark ? "dark" : "light"}
-              positiveButtonLabel="OK"
-              negativeButtonLabel="Cancel"
-              // These colors will be used for the calendar header and selected date
-              accentColor={
-                isDark ? theme.colors.textAccent : theme.brandColors.primary
-              }
+
             />
           )}
         </View>
@@ -384,19 +417,11 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
               testID="toDatePicker"
               value={formData.toDate || formData.fromDate || new Date()}
               mode="date"
-              display="default" // Use default for Android (calendar)
+              display="default"
               onChange={(event, date) =>
                 handleDateChange("toDate", event, date)
               }
               minimumDate={formData.fromDate || new Date()}
-              // Android styling props
-              themeVariant={isDark ? "dark" : "light"}
-              positiveButtonLabel="OK"
-              negativeButtonLabel="Cancel"
-              // These colors will be used for the calendar header and selected date
-              accentColor={
-                isDark ? theme.colors.textAccent : theme.brandColors.primary
-              }
             />
           )}
         </View>
@@ -491,28 +516,39 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
               setShowLeaveTypeDropdown(false);
             }}
           >
-            <Text
-              style={[
-                styles.inputText,
-                {
-                  color: formData.leaveApprover
-                    ? theme.colors.textPrimary
-                    : theme.colors.inputPlaceholder,
-                },
-              ]}
-            >
-              {formData.leaveApprover
-                ? `${formData.leaveApprover} : ${formData.leaveApproverName}`
-                : "Select Approver"}
-            </Text>
-            <Ionicons
-              name={showApproverDropdown ? "chevron-up" : "chevron-down"}
-              size={20}
-              color={theme.colors.iconSecondary}
-            />
+            {loadingApprovers ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="small" color={theme.colors.textPrimary} />
+                <Text style={[styles.inputText, { color: theme.colors.inputPlaceholder }]}>
+                  Loading approvers...
+                </Text>
+              </View>
+            ) : (
+              <>
+                <Text
+                  style={[
+                    styles.inputText,
+                    {
+                      color: formData.leaveApprover
+                        ? theme.colors.textPrimary
+                        : theme.colors.inputPlaceholder,
+                    },
+                  ]}
+                >
+                  {formData.leaveApprover
+                    ? `${formData.leaveApproverName}`
+                    : "Select Approver"}
+                </Text>
+                <Ionicons
+                  name={showApproverDropdown ? "chevron-up" : "chevron-down"}
+                  size={20}
+                  color={theme.colors.iconSecondary}
+                />
+              </>
+            )}
           </TouchableOpacity>
 
-          {showApproverDropdown && (
+          {showApproverDropdown && !loadingApprovers && (
             <View
               style={[
                 styles.dropdown,
@@ -524,42 +560,59 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
                 },
               ]}
             >
-              {approvers.map((approver, index) => (
+              {approversError ? (
                 <TouchableOpacity
-                  key={index}
-                  style={[
-                    styles.dropdownItem,
-                    {
-                      borderBottomColor:
-                        index < approvers.length - 1
-                          ? theme.colors.divider
-                          : "transparent",
-                      borderBottomWidth: index < approvers.length - 1 ? 1 : 0,
-                      backgroundColor:
-                        formData.leaveApprover === approver.email
-                          ? theme.colors.highlight
-                          : theme.colors.surfacePrimary,
-                    },
-                  ]}
-                  onPress={() => {
-                    setFormData({
-                      ...formData,
-                      leaveApprover: approver.email,
-                      leaveApproverName: approver.name,
-                    });
-                    setShowApproverDropdown(false);
-                  }}
+                  style={styles.dropdownItem}
+                  onPress={refreshApprovers}
                 >
-                  <Text
-                    style={[
-                      styles.dropdownItemText,
-                      { color: theme.colors.textPrimary },
-                    ]}
-                  >
-                    {`${approver.email} : ${approver.name}`}
+                  <Text style={[styles.dropdownItemText, { color: theme.statusColors.error }]}>
+                    Error loading approvers. Tap to retry.
                   </Text>
                 </TouchableOpacity>
-              ))}
+              ) : approvers.length === 0 ? (
+                <View style={styles.dropdownItem}>
+                  <Text style={[styles.dropdownItemText, { color: theme.colors.textSecondary }]}>
+                    No approvers found
+                  </Text>
+                </View>
+              ) : (
+                approvers.map((approver, index) => (
+                  <TouchableOpacity
+                    key={index}
+                    style={[
+                      styles.dropdownItem,
+                      {
+                        borderBottomColor:
+                          index < approvers.length - 1
+                            ? theme.colors.divider
+                            : "transparent",
+                        borderBottomWidth: index < approvers.length - 1 ? 1 : 0,
+                        backgroundColor:
+                          formData.leaveApprover === approver.email
+                            ? theme.colors.highlight
+                            : theme.colors.surfacePrimary,
+                      },
+                    ]}
+                    onPress={() => {
+                      setFormData({
+                        ...formData,
+                        leaveApprover: approver.email,
+                        leaveApproverName: approver.name,
+                      });
+                      setShowApproverDropdown(false);
+                    }}
+                  >
+                    <Text
+                      style={[
+                        styles.dropdownItemText,
+                        { color: theme.colors.textPrimary },
+                      ]}
+                    >
+                      {approver.name}
+                    </Text>
+                  </TouchableOpacity>
+                ))
+              )}
             </View>
           )}
         </View>
@@ -777,6 +830,11 @@ const styles = StyleSheet.create({
   saveButtonText: {
     fontSize: 16,
     fontWeight: "500",
+  },
+  loadingContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
   },
 });
 
