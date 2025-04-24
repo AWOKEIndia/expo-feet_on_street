@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   View,
   Text,
@@ -12,12 +12,14 @@ import {
   Keyboard,
   BackHandler,
   ActivityIndicator,
+  Alert,
 } from "react-native";
 import { useTheme } from "@/contexts/ThemeContext";
 import { Ionicons } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { AppState } from "react-native";
 import useLeaveApprovers from "@/hooks/useLeaveApprover";
+import useLeaveTypes from "@/hooks/useLeaveTypes";
 import { useAuthContext } from "@/contexts/AuthContext";
 
 interface LeaveRequestFormProps {
@@ -27,6 +29,7 @@ interface LeaveRequestFormProps {
 
 interface LeaveRequestData {
   leaveType: string;
+  leaveTypeName: string;
   fromDate: Date | null;
   toDate: Date | null;
   isHalfDay: boolean;
@@ -45,6 +48,7 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
 
   const [formData, setFormData] = useState<LeaveRequestData>({
     leaveType: "",
+    leaveTypeName: "",
     fromDate: null,
     toDate: null,
     isHalfDay: false,
@@ -59,15 +63,80 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
   const [showLeaveTypeDropdown, setShowLeaveTypeDropdown] = useState(false);
   const [showApproverDropdown, setShowApproverDropdown] = useState(false);
   const [appState, setAppState] = useState(AppState.currentState);
-
+  const [currentBalance, setCurrentBalance] = useState<number | null>(null);
+  const [requestedDays, setRequestedDays] = useState<number>(0);
+  const [remainingBalance, setRemainingBalance] = useState<number | null>(null);
 
   // Use the leave approvers hook
   const {
     approvalDetails,
     loading: loadingApprovers,
     error: approversError,
-    refresh: refreshApprovers
+    refresh: refreshApprovers,
   } = useLeaveApprovers(accessToken as string, employeeProfile?.name as string);
+
+  // Use the leave types hook
+  const {
+    data: leaveTypes,
+    loading: loadingLeaveTypes,
+    error: leaveTypesError,
+    refresh: refreshLeaveTypes,
+    getBalanceForLeaveType,
+    calculateDaysBetween,
+  } = useLeaveTypes(accessToken as string, employeeProfile?.name as string);
+
+  useEffect(() => {
+    const days = calculateDaysBetween(
+      formData.fromDate,
+      formData.toDate,
+      formData.isHalfDay
+    );
+    setRequestedDays(days);
+  }, [
+    formData.fromDate,
+    formData.toDate,
+    formData.isHalfDay,
+    calculateDaysBetween,
+  ]);
+
+  useEffect(() => {
+    if (formData.leaveType) {
+      const balance = getBalanceForLeaveType(formData.leaveType);
+      setCurrentBalance(balance);
+      setRemainingBalance(balance - requestedDays);
+    } else {
+      setCurrentBalance(null);
+      setRemainingBalance(null);
+    }
+  }, [formData.leaveType, requestedDays, getBalanceForLeaveType]);
+
+  // Determine if the form can be submitted based on available balance
+  const hasEnoughBalance = useMemo(() => {
+    if (remainingBalance === null) return false;
+    return remainingBalance >= 0;
+  }, [remainingBalance]);
+
+  // Add this function to get the balance status color
+  const getBalanceStatusColor = () => {
+    if (remainingBalance === null) return theme.colors.textSecondary;
+    return remainingBalance >= 0
+      ? theme.statusColors.success
+      : theme.statusColors.error;
+  };
+
+  // Update the handleSubmit function to check balance before submitting
+  const handleSubmitt = () => {
+    if (!hasEnoughBalance) {
+      // Handle not enough balance - could show an alert or error message
+      Alert.alert(
+        "Insufficient Leave Balance",
+        "You don't have enough leave balance for this request.",
+        [{ text: "OK" }]
+      );
+      return;
+    }
+    onSubmit(formData);
+  };
 
   // Handle app state changes to properly close date pickers if app goes to background
   useEffect(() => {
@@ -84,9 +153,6 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
     };
   }, [appState]);
 
-  // Sample data for leave types
-  const leaveTypes = ["Annual Leave", "Sick Leave", "Work From Home", "Casual Leave"];
-
   // Format the approvers from the hook response
   const getFormattedApprovers = () => {
     if (!approvalDetails) return [];
@@ -94,21 +160,27 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
     const formattedApprovers = [];
 
     // Add leave approvers if available
-    if (approvalDetails.leave_approvers && approvalDetails.leave_approvers.length > 0) {
+    if (
+      approvalDetails.leave_approvers &&
+      approvalDetails.leave_approvers.length > 0
+    ) {
       formattedApprovers.push(
-        ...approvalDetails.leave_approvers.map(approver => ({
+        ...approvalDetails.leave_approvers.map((approver) => ({
           email: approver.user,
-          name: approver.name
+          name: approver.name,
         }))
       );
     }
 
     // Add department approvers if available
-    if (approvalDetails.department_approvers && approvalDetails.department_approvers.length > 0) {
+    if (
+      approvalDetails.department_approvers &&
+      approvalDetails.department_approvers.length > 0
+    ) {
       formattedApprovers.push(
-        ...approvalDetails.department_approvers.map(approver => ({
+        ...approvalDetails.department_approvers.map((approver) => ({
           email: approver.user,
-          name: approver.name
+          name: approver.name,
         }))
       );
     }
@@ -232,7 +304,8 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
         {/* Leave Type Field */}
         <View style={styles.fieldContainer}>
           <Text style={[styles.label, { color: theme.colors.textPrimary }]}>
-            Leave Type <Text style={{ color: theme.statusColors.error }}>*</Text>
+            Leave Type{" "}
+            <Text style={{ color: theme.statusColors.error }}>*</Text>
           </Text>
           <TouchableOpacity
             style={[
@@ -249,26 +322,45 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
               setShowApproverDropdown(false);
             }}
           >
-            <Text
-              style={[
-                styles.inputText,
-                {
-                  color: formData.leaveType
-                    ? theme.colors.textPrimary
-                    : theme.colors.inputPlaceholder,
-                },
-              ]}
-            >
-              {formData.leaveType || "Select Leave Type"}
-            </Text>
-            <Ionicons
-              name={showLeaveTypeDropdown ? "chevron-up" : "chevron-down"}
-              size={20}
-              color={theme.colors.iconSecondary}
-            />
+            {loadingLeaveTypes ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator
+                  size="small"
+                  color={theme.colors.textPrimary}
+                />
+                <Text
+                  style={[
+                    styles.inputText,
+                    { color: theme.colors.inputPlaceholder },
+                  ]}
+                >
+                  Loading leave types...
+                </Text>
+              </View>
+            ) : (
+              <>
+                <Text
+                  style={[
+                    styles.inputText,
+                    {
+                      color: formData.leaveTypeName
+                        ? theme.colors.textPrimary
+                        : theme.colors.inputPlaceholder,
+                    },
+                  ]}
+                >
+                  {formData.leaveTypeName || "Select Leave Type"}
+                </Text>
+                <Ionicons
+                  name={showLeaveTypeDropdown ? "chevron-up" : "chevron-down"}
+                  size={20}
+                  color={theme.colors.iconSecondary}
+                />
+              </>
+            )}
           </TouchableOpacity>
 
-          {showLeaveTypeDropdown && (
+          {showLeaveTypeDropdown && !loadingLeaveTypes && (
             <View
               style={[
                 styles.dropdown,
@@ -280,38 +372,70 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
                 },
               ]}
             >
-              {leaveTypes.map((type, index) => (
+              {leaveTypesError ? (
                 <TouchableOpacity
-                  key={index}
-                  style={[
-                    styles.dropdownItem,
-                    {
-                      borderBottomColor:
-                        index < leaveTypes.length - 1
-                          ? theme.colors.divider
-                          : "transparent",
-                      borderBottomWidth: index < leaveTypes.length - 1 ? 1 : 0,
-                      backgroundColor:
-                        formData.leaveType === type
-                          ? theme.colors.highlight
-                          : theme.colors.surfacePrimary,
-                    },
-                  ]}
-                  onPress={() => {
-                    setFormData({ ...formData, leaveType: type });
-                    setShowLeaveTypeDropdown(false);
-                  }}
+                  style={styles.dropdownItem}
+                  onPress={refreshLeaveTypes}
                 >
                   <Text
                     style={[
                       styles.dropdownItemText,
-                      { color: theme.colors.textPrimary },
+                      { color: theme.statusColors.error },
                     ]}
                   >
-                    {type}
+                    Error loading leave types. Tap to retry.
                   </Text>
                 </TouchableOpacity>
-              ))}
+              ) : leaveTypes.length === 0 ? (
+                <View style={styles.dropdownItem}>
+                  <Text
+                    style={[
+                      styles.dropdownItemText,
+                      { color: theme.colors.textSecondary },
+                    ]}
+                  >
+                    No leave types found
+                  </Text>
+                </View>
+              ) : (
+                leaveTypes.map((type, index) => (
+                  <TouchableOpacity
+                    key={index}
+                    style={[
+                      styles.dropdownItem,
+                      {
+                        borderBottomColor:
+                          index < leaveTypes.length - 1
+                            ? theme.colors.divider
+                            : "transparent",
+                        borderBottomWidth:
+                          index < leaveTypes.length - 1 ? 1 : 0,
+                        backgroundColor:
+                          formData.leaveType === type.name
+                            ? theme.colors.highlight
+                            : theme.colors.surfacePrimary,
+                      },
+                    ]}
+                    onPress={() => {
+                      setFormData({
+                        ...formData,
+                        leaveType: type.name,
+                        leaveTypeName: type.leave_type_name,
+                      });
+                      setShowLeaveTypeDropdown(false);
+                    }}
+                  >
+                    <Text
+                      style={[
+                        styles.dropdownItemText,
+                        { color: theme.colors.textPrimary },
+                      ]}
+                    >
+                      {type.leave_type_name}
+                    </Text>
+                  </TouchableOpacity>
+                ))
+              )}
             </View>
           )}
         </View>
@@ -372,7 +496,6 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
                 handleDateChange("fromDate", event, date)
               }
               minimumDate={new Date()}
-
             />
           )}
         </View>
@@ -462,6 +585,88 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
           </Text>
         </View>
 
+        {formData.leaveType && currentBalance !== null && (
+          <View
+            style={[
+              styles.balanceInfoContainer,
+              {
+                backgroundColor: isDark
+                  ? theme.colors.surfaceSecondary
+                  : "rgba(0, 0, 0, 0.03)",
+                borderColor: isDark
+                  ? theme.colors.border
+                  : "rgba(0, 0, 0, 0.1)",
+              },
+            ]}
+          >
+            <View style={styles.balanceRow}>
+              <Text
+                style={[
+                  styles.balanceLabel,
+                  { color: theme.colors.textSecondary },
+                ]}
+              >
+                Current Balance:
+              </Text>
+              <Text
+                style={[
+                  styles.balanceValue,
+                  { color: theme.colors.textPrimary },
+                ]}
+              >
+                {currentBalance.toFixed(1)} days
+              </Text>
+            </View>
+
+            <View style={styles.balanceRow}>
+              <Text
+                style={[
+                  styles.balanceLabel,
+                  { color: theme.colors.textSecondary },
+                ]}
+              >
+                Requested:
+              </Text>
+              <Text
+                style={[
+                  styles.balanceValue,
+                  { color: theme.colors.textPrimary },
+                ]}
+              >
+                {requestedDays.toFixed(1)} days
+              </Text>
+            </View>
+
+            <View
+              style={[
+                styles.balanceDivider,
+                { backgroundColor: theme.colors.divider },
+              ]}
+            />
+
+            <View style={styles.balanceRow}>
+              <Text
+                style={[
+                  styles.balanceLabel,
+                  { color: theme.colors.textSecondary },
+                ]}
+              >
+                Remaining Balance:
+              </Text>
+              <Text
+                style={[
+                  styles.balanceValue,
+                  styles.remainingBalance,
+                  { color: getBalanceStatusColor() },
+                ]}
+              >
+                {remainingBalance !== null ? remainingBalance.toFixed(1) : "0"}{" "}
+                days
+              </Text>
+            </View>
+          </View>
+        )}
+
         {/* Reason Field */}
         <View style={styles.fieldContainer}>
           <Text style={[styles.label, { color: theme.colors.textPrimary }]}>
@@ -481,9 +686,7 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
             placeholder="Enter Reason"
             placeholderTextColor={theme.colors.inputPlaceholder}
             value={formData.reason}
-            onChangeText={(text) =>
-              setFormData({ ...formData, reason: text })
-            }
+            onChangeText={(text) => setFormData({ ...formData, reason: text })}
           />
         </View>
 
@@ -499,7 +702,8 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
         {/* Leave Approver Field */}
         <View style={styles.fieldContainer}>
           <Text style={[styles.label, { color: theme.colors.textPrimary }]}>
-            Leave Approver <Text style={{ color: theme.statusColors.error }}>*</Text>
+            Leave Approver{" "}
+            <Text style={{ color: theme.statusColors.error }}>*</Text>
           </Text>
           <TouchableOpacity
             style={[
@@ -518,8 +722,16 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
           >
             {loadingApprovers ? (
               <View style={styles.loadingContainer}>
-                <ActivityIndicator size="small" color={theme.colors.textPrimary} />
-                <Text style={[styles.inputText, { color: theme.colors.inputPlaceholder }]}>
+                <ActivityIndicator
+                  size="small"
+                  color={theme.colors.textPrimary}
+                />
+                <Text
+                  style={[
+                    styles.inputText,
+                    { color: theme.colors.inputPlaceholder },
+                  ]}
+                >
                   Loading approvers...
                 </Text>
               </View>
@@ -529,15 +741,13 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
                   style={[
                     styles.inputText,
                     {
-                      color: formData.leaveApprover
+                      color: formData.leaveApproverName
                         ? theme.colors.textPrimary
                         : theme.colors.inputPlaceholder,
                     },
                   ]}
                 >
-                  {formData.leaveApprover
-                    ? `${formData.leaveApproverName}`
-                    : "Select Approver"}
+                  {formData.leaveApproverName || "Select Approver"}
                 </Text>
                 <Ionicons
                   name={showApproverDropdown ? "chevron-up" : "chevron-down"}
@@ -565,13 +775,23 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
                   style={styles.dropdownItem}
                   onPress={refreshApprovers}
                 >
-                  <Text style={[styles.dropdownItemText, { color: theme.statusColors.error }]}>
+                  <Text
+                    style={[
+                      styles.dropdownItemText,
+                      { color: theme.statusColors.error },
+                    ]}
+                  >
                     Error loading approvers. Tap to retry.
                   </Text>
                 </TouchableOpacity>
               ) : approvers.length === 0 ? (
                 <View style={styles.dropdownItem}>
-                  <Text style={[styles.dropdownItemText, { color: theme.colors.textSecondary }]}>
+                  <Text
+                    style={[
+                      styles.dropdownItemText,
+                      { color: theme.colors.textSecondary },
+                    ]}
+                  >
                     No approvers found
                   </Text>
                 </View>
@@ -691,10 +911,13 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
           style={[
             styles.saveButton,
             {
-              backgroundColor: theme.colors.buttonPrimary,
+              backgroundColor: hasEnoughBalance
+                ? theme.colors.buttonPrimary
+                : theme.colors.buttonDisabled,
             },
           ]}
           onPress={handleSubmit}
+          disabled={!hasEnoughBalance}
         >
           <Text
             style={[styles.saveButtonText, { color: theme.baseColors.white }]}
@@ -835,6 +1058,33 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
+  },
+  balanceInfoContainer: {
+    marginTop: 8,
+    marginBottom: 16,
+    padding: 16,
+    borderRadius: 16,
+    borderWidth: 1,
+  },
+  balanceDivider: {
+    height: 1,
+    marginVertical: 8,
+  },
+  balanceRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 4,
+  },
+  balanceLabel: {
+    fontSize: 14,
+  },
+  balanceValue: {
+    fontSize: 14,
+    fontWeight: "500",
+  },
+  remainingBalance: {
+    fontWeight: "700",
   },
 });
 

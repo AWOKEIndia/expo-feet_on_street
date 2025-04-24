@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useCallback, useEffect } from "react";
 
 export interface AttendanceRequest {
   name: string;
@@ -23,8 +23,11 @@ const useAttendanceRequests = (accessToken: string, employeeId: string) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
   const [refreshing, setRefreshing] = useState(false);
-  const [attendanceRequests, setAttendanceRequests] = useState<AttendanceRequest[]>([]);
-  const [selectedAttendance, setSelectedAttendance] = useState<AttendanceRequest | null>(null);
+  const [attendanceRequests, setAttendanceRequests] = useState<
+    AttendanceRequest[]
+  >([]);
+  const [selectedAttendance, setSelectedAttendance] =
+    useState<AttendanceRequest | null>(null);
 
   const cacheRef = useRef<AttendanceRequestsCache>({});
   const cacheKey = `attendance_${employeeId}`;
@@ -52,29 +55,29 @@ const useAttendanceRequests = (accessToken: string, employeeId: string) => {
             Accept: "application/json",
             "Content-Type": "application/json",
             Authorization: `Bearer ${accessToken}`,
-          }
+          },
         }
       );
 
       if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(
-          `HTTP error! Status: ${response.status}. ${errorText}`
-        );
+        throw new Error(`HTTP error! Status: ${response.status}. ${errorText}`);
       }
 
       const result = await response.json();
-      console.log(`Details for attendance request ${requestId} retrieved:`, result);
+      console.log(`Details for attendance request ${requestId} retrieved`);
 
       if (result && result.data) {
         return {
           ...result.data,
-          status: getStatusText(result.data.docstatus)
+          status: getStatusText(result.data.docstatus),
         };
       }
       return null;
     } catch (error) {
-      console.error(`Error fetching details for attendance request ${requestId}:`, error);
+      console.error(
+        `Error fetching details for attendance request ${requestId}`
+      );
       return null;
     }
   };
@@ -104,13 +107,11 @@ const useAttendanceRequests = (accessToken: string, employeeId: string) => {
 
       if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(
-          `HTTP error! Status: ${response.status}. ${errorText}`
-        );
+        throw new Error(`HTTP error! Status: ${response.status}. ${errorText}`);
       }
 
       const result = await response.json();
-      console.log("Attendance requests list retrieved:", result);
+      console.log("Attendance requests list retrieved");
 
       if (result && result.data) {
         const requestsList = Array.isArray(result.data) ? result.data : [];
@@ -121,11 +122,13 @@ const useAttendanceRequests = (accessToken: string, employeeId: string) => {
         );
 
         const detailResults = await Promise.all(detailPromises);
-        const formattedRequests = detailResults.filter(Boolean) as AttendanceRequest[];
+        const formattedRequests = detailResults.filter(
+          Boolean
+        ) as AttendanceRequest[];
 
         // Filter requests for the current employee if employeeId is provided
         const filteredRequests = employeeId
-          ? formattedRequests.filter(req => req.employee === employeeId)
+          ? formattedRequests.filter((req) => req.employee === employeeId)
           : formattedRequests;
 
         // Update cache and current data
@@ -163,11 +166,15 @@ const useAttendanceRequests = (accessToken: string, employeeId: string) => {
   };
 
   // Function to select an attendance request by ID
-  const selectAttendanceById = useCallback((id: string) => {
-    const attendance = attendanceRequests.find(req => req.name === id) || null;
-    setSelectedAttendance(attendance);
-    return attendance;
-  }, [attendanceRequests]);
+  const selectAttendanceById = useCallback(
+    (id: string) => {
+      const attendance =
+        attendanceRequests.find((req) => req.name === id) || null;
+      setSelectedAttendance(attendance);
+      return attendance;
+    },
+    [attendanceRequests]
+  );
 
   // Clear the selected attendance
   const clearSelectedAttendance = useCallback(() => {
@@ -183,7 +190,7 @@ const useAttendanceRequests = (accessToken: string, employeeId: string) => {
     calculateDays,
     selectedAttendance,
     selectAttendanceById,
-    clearSelectedAttendance
+    clearSelectedAttendance,
   };
 };
 

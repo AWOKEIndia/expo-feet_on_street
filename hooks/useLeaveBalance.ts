@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useCallback, useEffect } from "react";
 
 export interface LeaveBalance {
   leave_type: string;
@@ -12,8 +12,8 @@ type LeaveBalanceMapResponse = {
     [key: string]: {
       allocated_leaves: number;
       balance_leaves: number;
-    }
-  }
+    };
+  };
 };
 
 type LeaveBalanceCache = {
@@ -49,29 +49,29 @@ const useLeaveBalance = (accessToken: string, employeeId: string) => {
             Authorization: `Bearer ${accessToken}`,
           },
           body: JSON.stringify({
-            employee: employeeId
+            employee: employeeId,
           }),
         }
       );
 
       if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(
-          `HTTP error! Status: ${response.status}. ${errorText}`
-        );
+        throw new Error(`HTTP error! Status: ${response.status}. ${errorText}`);
       }
 
-      const result = await response.json() as LeaveBalanceMapResponse;
-      console.log("Leave balance retrieved:", result);
+      const result = (await response.json()) as LeaveBalanceMapResponse;
+      console.log("Leave balance retrieved");
 
       if (result.message) {
         // Transform the nested object format to an array of LeaveBalance objects
-        const balances: LeaveBalance[] = Object.entries(result.message).map(([leaveType, details]) => ({
-          leave_type: leaveType,
-          total_leaves: details.allocated_leaves,
-          balance_leaves: details.balance_leaves,
-          used_leaves: details.allocated_leaves - details.balance_leaves
-        }));
+        const balances: LeaveBalance[] = Object.entries(result.message).map(
+          ([leaveType, details]) => ({
+            leave_type: leaveType,
+            total_leaves: details.allocated_leaves,
+            balance_leaves: details.balance_leaves,
+            used_leaves: details.allocated_leaves - details.balance_leaves,
+          })
+        );
 
         // Update cache and current data
         cacheRef.current[cacheKey] = balances;
@@ -107,7 +107,7 @@ const useLeaveBalance = (accessToken: string, employeeId: string) => {
     loading,
     error,
     refreshing,
-    refresh
+    refresh,
   };
 };
 

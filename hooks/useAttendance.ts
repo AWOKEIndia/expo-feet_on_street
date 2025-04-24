@@ -1,5 +1,5 @@
-import { useState, useRef, useCallback, useEffect } from 'react';
-import dayjs from 'dayjs';
+import { useState, useRef, useCallback, useEffect } from "react";
+import dayjs from "dayjs";
 
 interface CalendarEventData {
   [date: string]: string;
@@ -71,7 +71,7 @@ const useAttendance = (accessToken: string, employee: string) => {
         }
 
         const result = await response.json();
-        console.log("Attendance calendar events retrieved:", result);
+        console.log("Attendance calendar events retrieved");
 
         if (result.message) {
           cacheRef.current[monthKey] = result.message;
