@@ -1,26 +1,27 @@
-import React, { useState, useEffect, useMemo } from "react";
 import {
-  View,
-  Text,
-  TextInput,
-  StyleSheet,
-  TouchableOpacity,
-  ScrollView,
+  ActivityIndicator,
+  Alert,
+  BackHandler,
+  Keyboard,
   KeyboardAvoidingView,
   Platform,
   Pressable,
-  Keyboard,
-  BackHandler,
-  ActivityIndicator,
-  Alert,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
-import { useTheme } from "@/contexts/ThemeContext";
-import { Ionicons } from "@expo/vector-icons";
-import DateTimePicker from "@react-native-community/datetimepicker";
+import React, { useEffect, useMemo, useState } from "react";
+
 import { AppState } from "react-native";
+import DateTimePicker from "@react-native-community/datetimepicker";
+import { Ionicons } from "@expo/vector-icons";
+import { useAuthContext } from "@/contexts/AuthContext";
 import useLeaveApprovers from "@/hooks/useLeaveApprover";
 import useLeaveTypes from "@/hooks/useLeaveTypes";
-import { useAuthContext } from "@/contexts/AuthContext";
+import { useTheme } from "@/contexts/ThemeContext";
 
 interface LeaveRequestFormProps {
   onSubmit: (data: LeaveRequestData) => void;
@@ -124,20 +125,6 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
       : theme.statusColors.error;
   };
 
-  // Update the handleSubmit function to check balance before submitting
-  const handleSubmitt = () => {
-    if (!hasEnoughBalance) {
-      // Handle not enough balance - could show an alert or error message
-      Alert.alert(
-        "Insufficient Leave Balance",
-        "You don't have enough leave balance for this request.",
-        [{ text: "OK" }]
-      );
-      return;
-    }
-    onSubmit(formData);
-  };
-
   // Handle app state changes to properly close date pickers if app goes to background
   useEffect(() => {
     const subscription = AppState.addEventListener("change", (nextAppState) => {
@@ -156,10 +143,8 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
   // Format the approvers from the hook response
   const getFormattedApprovers = () => {
     if (!approvalDetails) return [];
-
     const formattedApprovers = [];
 
-    // Add leave approvers if available
     if (
       approvalDetails.leave_approvers &&
       approvalDetails.leave_approvers.length > 0
@@ -219,13 +204,19 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
   };
 
   const handleSubmit = () => {
+    if (!hasEnoughBalance) {
+      Alert.alert(
+        "Insufficient Leave Balance",
+        "You don't have enough leave balance for this request.",
+        [{ text: "OK" }]
+      );
+      return;
+    }
     onSubmit(formData);
   };
-
   // For handling dropdown outside tap
   useEffect(() => {
     if (showLeaveTypeDropdown || showApproverDropdown) {
-      // Create listener for touches outside the dropdown
       const handleOutsideTouch = () => {
         setShowLeaveTypeDropdown(false);
         setShowApproverDropdown(false);
@@ -298,604 +289,623 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
           New Leave Application
         </Text>
       </View>
-      <ScrollView
-        style={[styles.form, { backgroundColor: theme.colors.background }]}
+      <Pressable
+        style={{ flex: 1 }}
+        onPress={() => {
+          Keyboard.dismiss(); // Dismiss the keyboard
+          setShowLeaveTypeDropdown(false); // Close Leave Type dropdown
+          setShowApproverDropdown(false); // Close Approver dropdown
+        }}
       >
-        {/* Leave Type Field */}
-        <View style={styles.fieldContainer}>
-          <Text style={[styles.label, { color: theme.colors.textPrimary }]}>
-            Leave Type{" "}
-            <Text style={{ color: theme.statusColors.error }}>*</Text>
-          </Text>
-          <TouchableOpacity
-            style={[
-              styles.dropdownContainer,
-              {
-                backgroundColor: theme.colors.inputBackground,
-                borderColor: showLeaveTypeDropdown
-                  ? theme.colors.inputBorderFocus
-                  : theme.colors.inputBorder,
-              },
-            ]}
-            onPress={() => {
-              setShowLeaveTypeDropdown(!showLeaveTypeDropdown);
-              setShowApproverDropdown(false);
-            }}
-          >
-            {loadingLeaveTypes ? (
-              <View style={styles.loadingContainer}>
-                <ActivityIndicator
-                  size="small"
-                  color={theme.colors.textPrimary}
-                />
-                <Text
-                  style={[
-                    styles.inputText,
-                    { color: theme.colors.inputPlaceholder },
-                  ]}
-                >
-                  Loading leave types...
-                </Text>
-              </View>
-            ) : (
-              <>
-                <Text
-                  style={[
-                    styles.inputText,
-                    {
-                      color: formData.leaveTypeName
-                        ? theme.colors.textPrimary
-                        : theme.colors.inputPlaceholder,
-                    },
-                  ]}
-                >
-                  {formData.leaveTypeName || "Select Leave Type"}
-                </Text>
-                <Ionicons
-                  name={showLeaveTypeDropdown ? "chevron-up" : "chevron-down"}
-                  size={20}
-                  color={theme.colors.iconSecondary}
-                />
-              </>
-            )}
-          </TouchableOpacity>
-
-          {showLeaveTypeDropdown && !loadingLeaveTypes && (
-            <View
-              style={[
-                styles.dropdown,
-                {
-                  backgroundColor: theme.colors.surfacePrimary,
-                  borderColor: theme.colors.border,
-                  shadowColor: theme.colors.shadow,
-                  elevation: 4,
-                },
-              ]}
-            >
-              {leaveTypesError ? (
-                <TouchableOpacity
-                  style={styles.dropdownItem}
-                  onPress={refreshLeaveTypes}
-                >
-                  <Text
-                    style={[
-                      styles.dropdownItemText,
-                      { color: theme.statusColors.error },
-                    ]}
-                  >
-                    Error loading leave types. Tap to retry.
-                  </Text>
-                </TouchableOpacity>
-              ) : leaveTypes.length === 0 ? (
-                <View style={styles.dropdownItem}>
-                  <Text
-                    style={[
-                      styles.dropdownItemText,
-                      { color: theme.colors.textSecondary },
-                    ]}
-                  >
-                    No leave types found
-                  </Text>
-                </View>
-              ) : (
-                leaveTypes.map((type, index) => (
-                  <TouchableOpacity
-                    key={index}
-                    style={[
-                      styles.dropdownItem,
-                      {
-                        borderBottomColor:
-                          index < leaveTypes.length - 1
-                            ? theme.colors.divider
-                            : "transparent",
-                        borderBottomWidth:
-                          index < leaveTypes.length - 1 ? 1 : 0,
-                        backgroundColor:
-                          formData.leaveType === type.name
-                            ? theme.colors.highlight
-                            : theme.colors.surfacePrimary,
-                      },
-                    ]}
-                    onPress={() => {
-                      setFormData({
-                        ...formData,
-                        leaveType: type.name,
-                        leaveTypeName: type.leave_type_name,
-                      });
-                      setShowLeaveTypeDropdown(false);
-                    }}
-                  >
-                    <Text
-                      style={[
-                        styles.dropdownItemText,
-                        { color: theme.colors.textPrimary },
-                      ]}
-                    >
-                      {type.leave_type_name}
-                    </Text>
-                  </TouchableOpacity>
-                ))
-              )}
-            </View>
-          )}
-        </View>
-
-        {/* Section Divider */}
-        <View style={styles.sectionContainer}>
-          <Text
-            style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}
-          >
-            Dates & Reason
-          </Text>
-        </View>
-
-        {/* From Date Field */}
-        <View style={styles.fieldContainer}>
-          <Text style={[styles.label, { color: theme.colors.textPrimary }]}>
-            From Date <Text style={{ color: theme.statusColors.error }}>*</Text>
-          </Text>
-          <TouchableOpacity
-            style={[
-              styles.input,
-              {
-                backgroundColor: theme.colors.inputBackground,
-                borderColor: theme.colors.inputBorder,
-              },
-            ]}
-            onPress={() => showAndroidDatePicker("fromDate")}
-          >
-            <Text
-              style={[
-                styles.inputText,
-                {
-                  color: formData.fromDate
-                    ? theme.colors.textPrimary
-                    : theme.colors.inputPlaceholder,
-                },
-              ]}
-            >
-              {formData.fromDate
-                ? formatDate(formData.fromDate)
-                : "Select Date"}
+        <ScrollView
+          style={[styles.form, { backgroundColor: theme.colors.background }]}
+          keyboardShouldPersistTaps="handled" // Ensures taps are registered even when the keyboard is open
+        >
+          {/* Leave Type Field */}
+          <View style={styles.fieldContainer}>
+            <Text style={[styles.label, { color: theme.colors.textPrimary }]}>
+              Leave Type{" "}
+              <Text style={{ color: theme.statusColors.error }}>*</Text>
             </Text>
-            <Ionicons
-              name="calendar-outline"
-              size={20}
-              color={theme.colors.iconSecondary}
-              style={styles.calendarIcon}
-            />
-          </TouchableOpacity>
-
-          {showFromDatePicker && (
-            <DateTimePicker
-              testID="fromDatePicker"
-              value={formData.fromDate || new Date()}
-              mode="date"
-              display="default"
-              onChange={(event, date) =>
-                handleDateChange("fromDate", event, date)
-              }
-              minimumDate={new Date()}
-            />
-          )}
-        </View>
-
-        {/* To Date Field */}
-        <View style={styles.fieldContainer}>
-          <Text style={[styles.label, { color: theme.colors.textPrimary }]}>
-            To Date <Text style={{ color: theme.statusColors.error }}>*</Text>
-          </Text>
-          <TouchableOpacity
-            style={[
-              styles.input,
-              {
-                backgroundColor: theme.colors.inputBackground,
-                borderColor: theme.colors.inputBorder,
-              },
-            ]}
-            onPress={() => showAndroidDatePicker("toDate")}
-          >
-            <Text
+            <TouchableOpacity
               style={[
-                styles.inputText,
+                styles.dropdownContainer,
                 {
-                  color: formData.toDate
-                    ? theme.colors.textPrimary
-                    : theme.colors.inputPlaceholder,
+                  backgroundColor: theme.colors.inputBackground,
+                  borderColor: showLeaveTypeDropdown
+                    ? theme.colors.inputBorderFocus
+                    : theme.colors.inputBorder,
                 },
               ]}
-            >
-              {formData.toDate ? formatDate(formData.toDate) : "Select Date"}
-            </Text>
-            <Ionicons
-              name="calendar-outline"
-              size={20}
-              color={theme.colors.iconSecondary}
-              style={styles.calendarIcon}
-            />
-          </TouchableOpacity>
-
-          {showToDatePicker && (
-            <DateTimePicker
-              testID="toDatePicker"
-              value={formData.toDate || formData.fromDate || new Date()}
-              mode="date"
-              display="default"
-              onChange={(event, date) =>
-                handleDateChange("toDate", event, date)
-              }
-              minimumDate={formData.fromDate || new Date()}
-            />
-          )}
-        </View>
-
-        {/* Half Day Checkbox */}
-        <View style={styles.checkboxRow}>
-          <Pressable
-            style={styles.checkboxContainer}
-            onPress={() => toggleCheckbox("isHalfDay")}
-          >
-            <View
-              style={{
-                width: 20,
-                height: 20,
-                borderWidth: 1,
-                borderColor: theme.colors.checkboxBorder,
-                backgroundColor: formData.isHalfDay
-                  ? theme.colors.checkboxFill
-                  : theme.colors.inputBackground,
-                alignItems: "center",
-                justifyContent: "center",
-                borderRadius: theme.borderRadius.xs,
+              onPress={() => {
+                setShowLeaveTypeDropdown(!showLeaveTypeDropdown);
+                setShowApproverDropdown(false);
               }}
             >
-              {formData.isHalfDay && (
-                <Ionicons
-                  name="checkmark"
-                  size={16}
-                  color={theme.baseColors.white}
-                />
-              )}
-            </View>
-          </Pressable>
-          <Text
-            style={[styles.checkboxLabel, { color: theme.colors.textPrimary }]}
-          >
-            Half Day
-          </Text>
-        </View>
-
-        {formData.leaveType && currentBalance !== null && (
-          <View
-            style={[
-              styles.balanceInfoContainer,
-              {
-                backgroundColor: isDark
-                  ? theme.colors.surfaceSecondary
-                  : "rgba(0, 0, 0, 0.03)",
-                borderColor: isDark
-                  ? theme.colors.border
-                  : "rgba(0, 0, 0, 0.1)",
-              },
-            ]}
-          >
-            <View style={styles.balanceRow}>
-              <Text
-                style={[
-                  styles.balanceLabel,
-                  { color: theme.colors.textSecondary },
-                ]}
-              >
-                Current Balance:
-              </Text>
-              <Text
-                style={[
-                  styles.balanceValue,
-                  { color: theme.colors.textPrimary },
-                ]}
-              >
-                {currentBalance.toFixed(1)} days
-              </Text>
-            </View>
-
-            <View style={styles.balanceRow}>
-              <Text
-                style={[
-                  styles.balanceLabel,
-                  { color: theme.colors.textSecondary },
-                ]}
-              >
-                Requested:
-              </Text>
-              <Text
-                style={[
-                  styles.balanceValue,
-                  { color: theme.colors.textPrimary },
-                ]}
-              >
-                {requestedDays.toFixed(1)} days
-              </Text>
-            </View>
-
-            <View
-              style={[
-                styles.balanceDivider,
-                { backgroundColor: theme.colors.divider },
-              ]}
-            />
-
-            <View style={styles.balanceRow}>
-              <Text
-                style={[
-                  styles.balanceLabel,
-                  { color: theme.colors.textSecondary },
-                ]}
-              >
-                Remaining Balance:
-              </Text>
-              <Text
-                style={[
-                  styles.balanceValue,
-                  styles.remainingBalance,
-                  { color: getBalanceStatusColor() },
-                ]}
-              >
-                {remainingBalance !== null ? remainingBalance.toFixed(1) : "0"}{" "}
-                days
-              </Text>
-            </View>
-          </View>
-        )}
-
-        {/* Reason Field */}
-        <View style={styles.fieldContainer}>
-          <Text style={[styles.label, { color: theme.colors.textPrimary }]}>
-            Reason
-          </Text>
-          <TextInput
-            style={[
-              styles.input,
-              styles.textarea,
-              {
-                backgroundColor: theme.colors.inputBackground,
-                borderColor: theme.colors.inputBorder,
-                color: theme.colors.textPrimary,
-              },
-            ]}
-            multiline
-            placeholder="Enter Reason"
-            placeholderTextColor={theme.colors.inputPlaceholder}
-            value={formData.reason}
-            onChangeText={(text) => setFormData({ ...formData, reason: text })}
-          />
-        </View>
-
-        {/* Section Divider */}
-        <View style={styles.sectionContainer}>
-          <Text
-            style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}
-          >
-            Approval
-          </Text>
-        </View>
-
-        {/* Leave Approver Field */}
-        <View style={styles.fieldContainer}>
-          <Text style={[styles.label, { color: theme.colors.textPrimary }]}>
-            Leave Approver{" "}
-            <Text style={{ color: theme.statusColors.error }}>*</Text>
-          </Text>
-          <TouchableOpacity
-            style={[
-              styles.dropdownContainer,
-              {
-                backgroundColor: theme.colors.inputBackground,
-                borderColor: showApproverDropdown
-                  ? theme.colors.inputBorderFocus
-                  : theme.colors.inputBorder,
-              },
-            ]}
-            onPress={() => {
-              setShowApproverDropdown(!showApproverDropdown);
-              setShowLeaveTypeDropdown(false);
-            }}
-          >
-            {loadingApprovers ? (
-              <View style={styles.loadingContainer}>
-                <ActivityIndicator
-                  size="small"
-                  color={theme.colors.textPrimary}
-                />
-                <Text
-                  style={[
-                    styles.inputText,
-                    { color: theme.colors.inputPlaceholder },
-                  ]}
-                >
-                  Loading approvers...
-                </Text>
-              </View>
-            ) : (
-              <>
-                <Text
-                  style={[
-                    styles.inputText,
-                    {
-                      color: formData.leaveApproverName
-                        ? theme.colors.textPrimary
-                        : theme.colors.inputPlaceholder,
-                    },
-                  ]}
-                >
-                  {formData.leaveApproverName || "Select Approver"}
-                </Text>
-                <Ionicons
-                  name={showApproverDropdown ? "chevron-up" : "chevron-down"}
-                  size={20}
-                  color={theme.colors.iconSecondary}
-                />
-              </>
-            )}
-          </TouchableOpacity>
-
-          {showApproverDropdown && !loadingApprovers && (
-            <View
-              style={[
-                styles.dropdown,
-                {
-                  backgroundColor: theme.colors.surfacePrimary,
-                  borderColor: theme.colors.border,
-                  shadowColor: theme.colors.shadow,
-                  elevation: 4,
-                },
-              ]}
-            >
-              {approversError ? (
-                <TouchableOpacity
-                  style={styles.dropdownItem}
-                  onPress={refreshApprovers}
-                >
+              {loadingLeaveTypes ? (
+                <View style={styles.loadingContainer}>
+                  <ActivityIndicator
+                    size="small"
+                    color={theme.colors.textPrimary}
+                  />
                   <Text
                     style={[
-                      styles.dropdownItemText,
-                      { color: theme.statusColors.error },
+                      styles.inputText,
+                      { color: theme.colors.inputPlaceholder },
                     ]}
                   >
-                    Error loading approvers. Tap to retry.
-                  </Text>
-                </TouchableOpacity>
-              ) : approvers.length === 0 ? (
-                <View style={styles.dropdownItem}>
-                  <Text
-                    style={[
-                      styles.dropdownItemText,
-                      { color: theme.colors.textSecondary },
-                    ]}
-                  >
-                    No approvers found
+                    Loading leave types...
                   </Text>
                 </View>
               ) : (
-                approvers.map((approver, index) => (
-                  <TouchableOpacity
-                    key={index}
+                <>
+                  <Text
                     style={[
-                      styles.dropdownItem,
+                      styles.inputText,
                       {
-                        borderBottomColor:
-                          index < approvers.length - 1
-                            ? theme.colors.divider
-                            : "transparent",
-                        borderBottomWidth: index < approvers.length - 1 ? 1 : 0,
-                        backgroundColor:
-                          formData.leaveApprover === approver.email
-                            ? theme.colors.highlight
-                            : theme.colors.surfacePrimary,
+                        color: formData.leaveTypeName
+                          ? theme.colors.textPrimary
+                          : theme.colors.inputPlaceholder,
                       },
                     ]}
-                    onPress={() => {
-                      setFormData({
-                        ...formData,
-                        leaveApprover: approver.email,
-                        leaveApproverName: approver.name,
-                      });
-                      setShowApproverDropdown(false);
-                    }}
+                  >
+                    {formData.leaveTypeName || "Select Leave Type"}
+                  </Text>
+                  <Ionicons
+                    name={showLeaveTypeDropdown ? "chevron-up" : "chevron-down"}
+                    size={20}
+                    color={theme.colors.iconSecondary}
+                  />
+                </>
+              )}
+            </TouchableOpacity>
+
+            {showLeaveTypeDropdown && !loadingLeaveTypes && (
+              <View
+                style={[
+                  styles.dropdown,
+                  {
+                    backgroundColor: theme.colors.surfacePrimary,
+                    borderColor: theme.colors.border,
+                    shadowColor: theme.colors.shadow,
+                    elevation: 4,
+                  },
+                ]}
+              >
+                {leaveTypesError ? (
+                  <TouchableOpacity
+                    style={styles.dropdownItem}
+                    onPress={refreshLeaveTypes}
                   >
                     <Text
                       style={[
                         styles.dropdownItemText,
-                        { color: theme.colors.textPrimary },
+                        { color: theme.statusColors.error },
                       ]}
                     >
-                      {approver.name}
+                      Error loading leave types. Tap to retry.
                     </Text>
                   </TouchableOpacity>
-                ))
-              )}
-            </View>
-          )}
-        </View>
+                ) : leaveTypes.length === 0 ? (
+                  <View style={styles.dropdownItem}>
+                    <Text
+                      style={[
+                        styles.dropdownItemText,
+                        { color: theme.colors.textSecondary },
+                      ]}
+                    >
+                      No leave types found
+                    </Text>
+                  </View>
+                ) : (
+                  leaveTypes.map((type, index) => (
+                    <TouchableOpacity
+                      key={index}
+                      style={[
+                        styles.dropdownItem,
+                        {
+                          borderBottomColor:
+                            index < leaveTypes.length - 1
+                              ? theme.colors.divider
+                              : "transparent",
+                          borderBottomWidth:
+                            index < leaveTypes.length - 1 ? 1 : 0,
+                          backgroundColor:
+                            formData.leaveType === type.name
+                              ? theme.colors.highlight
+                              : theme.colors.surfacePrimary,
+                        },
+                      ]}
+                      onPress={() => {
+                        setFormData({
+                          ...formData,
+                          leaveType: type.name,
+                          leaveTypeName: type.leave_type_name,
+                        });
+                        setShowLeaveTypeDropdown(false);
+                      }}
+                    >
+                      <Text
+                        style={[
+                          styles.dropdownItemText,
+                          { color: theme.colors.textPrimary },
+                        ]}
+                      >
+                        {type.leave_type_name}
+                      </Text>
+                    </TouchableOpacity>
+                  ))
+                )}
+              </View>
+            )}
+          </View>
 
-        {/* Leave Approver Name Field */}
-        <View style={styles.fieldContainer}>
-          <Text style={[styles.label, { color: theme.colors.textPrimary }]}>
-            Leave Approver Name
-          </Text>
-          <TextInput
-            style={[
-              styles.input,
-              {
-                backgroundColor: theme.colors.inputBackground,
-                borderColor: theme.colors.inputBorder,
-                color: theme.colors.textPrimary,
-              },
-            ]}
-            value={formData.leaveApproverName}
-            editable={false}
-            placeholderTextColor={theme.colors.inputPlaceholder}
-          />
-        </View>
+          {/* Section Divider */}
+          <View style={styles.sectionContainer}>
+            <Text
+              style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}
+            >
+              Dates & Reason
+            </Text>
+          </View>
 
-        {/* Section Divider */}
-        <View style={styles.sectionContainer}>
-          <Text
-            style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}
-          >
-            Attachments
-          </Text>
-        </View>
-
-        {/* Attachments Field */}
-        <View style={styles.fieldContainer}>
-          <TouchableOpacity
-            style={[
-              styles.attachmentContainer,
-              {
-                backgroundColor: theme.colors.inputBackground,
-                borderColor: theme.colors.inputBorder,
-              },
-            ]}
-            // Implement attachment handling logic here
-          >
-            <View style={styles.attachmentContent}>
-              <Ionicons
-                name="cloud-upload-outline"
-                size={24}
-                color={theme.colors.iconSecondary}
-              />
+          {/* From Date Field */}
+          <View style={styles.fieldContainer}>
+            <Text style={[styles.label, { color: theme.colors.textPrimary }]}>
+              From Date{" "}
+              <Text style={{ color: theme.statusColors.error }}>*</Text>
+            </Text>
+            <TouchableOpacity
+              style={[
+                styles.input,
+                {
+                  backgroundColor: theme.colors.inputBackground,
+                  borderColor: theme.colors.inputBorder,
+                },
+              ]}
+              onPress={() => showAndroidDatePicker("fromDate")}
+            >
               <Text
                 style={[
-                  styles.attachmentText,
-                  { color: theme.colors.textSecondary },
+                  styles.inputText,
+                  {
+                    color: formData.fromDate
+                      ? theme.colors.textPrimary
+                      : theme.colors.inputPlaceholder,
+                  },
                 ]}
               >
-                Upload images or documents
+                {formData.fromDate
+                  ? formatDate(formData.fromDate)
+                  : "Select Date"}
               </Text>
+              <Ionicons
+                name="calendar-outline"
+                size={20}
+                color={theme.colors.iconSecondary}
+                style={styles.calendarIcon}
+              />
+            </TouchableOpacity>
+
+            {showFromDatePicker && (
+              <DateTimePicker
+                testID="fromDatePicker"
+                value={formData.fromDate || new Date()}
+                mode="date"
+                display="default"
+                onChange={(event, date) =>
+                  handleDateChange("fromDate", event, date)
+                }
+                minimumDate={new Date()}
+              />
+            )}
+          </View>
+
+          {/* To Date Field */}
+          <View style={styles.fieldContainer}>
+            <Text style={[styles.label, { color: theme.colors.textPrimary }]}>
+              To Date <Text style={{ color: theme.statusColors.error }}>*</Text>
+            </Text>
+            <TouchableOpacity
+              style={[
+                styles.input,
+                {
+                  backgroundColor: theme.colors.inputBackground,
+                  borderColor: theme.colors.inputBorder,
+                },
+              ]}
+              onPress={() => showAndroidDatePicker("toDate")}
+            >
+              <Text
+                style={[
+                  styles.inputText,
+                  {
+                    color: formData.toDate
+                      ? theme.colors.textPrimary
+                      : theme.colors.inputPlaceholder,
+                  },
+                ]}
+              >
+                {formData.toDate ? formatDate(formData.toDate) : "Select Date"}
+              </Text>
+              <Ionicons
+                name="calendar-outline"
+                size={20}
+                color={theme.colors.iconSecondary}
+                style={styles.calendarIcon}
+              />
+            </TouchableOpacity>
+
+            {showToDatePicker && (
+              <DateTimePicker
+                testID="toDatePicker"
+                value={formData.toDate || formData.fromDate || new Date()}
+                mode="date"
+                display="default"
+                onChange={(event, date) =>
+                  handleDateChange("toDate", event, date)
+                }
+                minimumDate={formData.fromDate || new Date()}
+              />
+            )}
+          </View>
+
+          {/* Half Day Checkbox */}
+          <View style={styles.checkboxRow}>
+            <Pressable
+              style={styles.checkboxContainer}
+              onPress={() => toggleCheckbox("isHalfDay")}
+            >
+              <View
+                style={{
+                  width: 20,
+                  height: 20,
+                  borderWidth: 1,
+                  borderColor: theme.colors.checkboxBorder,
+                  backgroundColor: formData.isHalfDay
+                    ? theme.colors.checkboxFill
+                    : theme.colors.inputBackground,
+                  alignItems: "center",
+                  justifyContent: "center",
+                  borderRadius: theme.borderRadius.xs,
+                }}
+              >
+                {formData.isHalfDay && (
+                  <Ionicons
+                    name="checkmark"
+                    size={16}
+                    color={theme.baseColors.white}
+                  />
+                )}
+              </View>
+            </Pressable>
+            <Text
+              style={[
+                styles.checkboxLabel,
+                { color: theme.colors.textPrimary },
+              ]}
+            >
+              Half Day
+            </Text>
+          </View>
+
+          {formData.leaveType && currentBalance !== null && (
+            <View
+              style={[
+                styles.balanceInfoContainer,
+                {
+                  backgroundColor: isDark
+                    ? theme.colors.surfaceSecondary
+                    : "rgba(0, 0, 0, 0.03)",
+                  borderColor: isDark
+                    ? theme.colors.border
+                    : "rgba(0, 0, 0, 0.1)",
+                },
+              ]}
+            >
+              <View style={styles.balanceRow}>
+                <Text
+                  style={[
+                    styles.balanceLabel,
+                    { color: theme.colors.textSecondary },
+                  ]}
+                >
+                  Current Balance:
+                </Text>
+                <Text
+                  style={[
+                    styles.balanceValue,
+                    { color: theme.colors.textPrimary },
+                  ]}
+                >
+                  {currentBalance.toFixed(1)} days
+                </Text>
+              </View>
+
+              <View style={styles.balanceRow}>
+                <Text
+                  style={[
+                    styles.balanceLabel,
+                    { color: theme.colors.textSecondary },
+                  ]}
+                >
+                  Requested:
+                </Text>
+                <Text
+                  style={[
+                    styles.balanceValue,
+                    { color: theme.colors.textError },
+                  ]}
+                >
+                  {`- ${requestedDays.toFixed(1)}`} days
+                </Text>
+              </View>
+
+              <View
+                style={[
+                  styles.balanceDivider,
+                  { backgroundColor: theme.colors.divider },
+                ]}
+              />
+
+              <View style={styles.balanceRow}>
+                <Text
+                  style={[
+                    styles.balanceLabel,
+                    { color: theme.colors.textSecondary },
+                  ]}
+                >
+                  Remaining Balance:
+                </Text>
+                <Text
+                  style={[
+                    styles.balanceValue,
+                    styles.remainingBalance,
+                    { color: getBalanceStatusColor() },
+                  ]}
+                >
+                  {remainingBalance !== null
+                    ? remainingBalance.toFixed(1)
+                    : "0"}{" "}
+                  days
+                </Text>
+              </View>
             </View>
-          </TouchableOpacity>
-        </View>
-      </ScrollView>
+          )}
+
+          {/* Reason Field */}
+          <View style={styles.fieldContainer}>
+            <Text style={[styles.label, { color: theme.colors.textPrimary }]}>
+              Reason
+            </Text>
+            <TextInput
+              style={[
+                styles.input,
+                styles.textarea,
+                {
+                  backgroundColor: theme.colors.inputBackground,
+                  borderColor: theme.colors.inputBorder,
+                  color: theme.colors.textPrimary,
+                },
+              ]}
+              multiline
+              placeholder="Enter Reason"
+              placeholderTextColor={theme.colors.inputPlaceholder}
+              value={formData.reason}
+              onChangeText={(text) =>
+                setFormData({ ...formData, reason: text })
+              }
+            />
+          </View>
+
+          {/* Section Divider */}
+          <View style={styles.sectionContainer}>
+            <Text
+              style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}
+            >
+              Approval
+            </Text>
+          </View>
+
+          {/* Leave Approver Field */}
+          <View style={styles.fieldContainer}>
+            <Text style={[styles.label, { color: theme.colors.textPrimary }]}>
+              Leave Approver{" "}
+              <Text style={{ color: theme.statusColors.error }}>*</Text>
+            </Text>
+            <TouchableOpacity
+              style={[
+                styles.dropdownContainer,
+                {
+                  backgroundColor: theme.colors.inputBackground,
+                  borderColor: showApproverDropdown
+                    ? theme.colors.inputBorderFocus
+                    : theme.colors.inputBorder,
+                },
+              ]}
+              onPress={() => {
+                setShowApproverDropdown(!showApproverDropdown);
+                setShowLeaveTypeDropdown(false);
+              }}
+            >
+              {loadingApprovers ? (
+                <View style={styles.loadingContainer}>
+                  <ActivityIndicator
+                    size="small"
+                    color={theme.colors.textPrimary}
+                  />
+                  <Text
+                    style={[
+                      styles.inputText,
+                      { color: theme.colors.inputPlaceholder },
+                    ]}
+                  >
+                    Loading approvers...
+                  </Text>
+                </View>
+              ) : (
+                <>
+                  <Text
+                    style={[
+                      styles.inputText,
+                      {
+                        color: formData.leaveApproverName
+                          ? theme.colors.textPrimary
+                          : theme.colors.inputPlaceholder,
+                      },
+                    ]}
+                  >
+                    {formData.leaveApproverName || "Select Approver"}
+                  </Text>
+                  <Ionicons
+                    name={showApproverDropdown ? "chevron-up" : "chevron-down"}
+                    size={20}
+                    color={theme.colors.iconSecondary}
+                  />
+                </>
+              )}
+            </TouchableOpacity>
+
+            {showApproverDropdown && !loadingApprovers && (
+              <View
+                style={[
+                  styles.dropdown,
+                  {
+                    backgroundColor: theme.colors.surfacePrimary,
+                    borderColor: theme.colors.border,
+                    shadowColor: theme.colors.shadow,
+                    elevation: 4,
+                  },
+                ]}
+              >
+                {approversError ? (
+                  <TouchableOpacity
+                    style={styles.dropdownItem}
+                    onPress={refreshApprovers}
+                  >
+                    <Text
+                      style={[
+                        styles.dropdownItemText,
+                        { color: theme.statusColors.error },
+                      ]}
+                    >
+                      Error loading approvers. Tap to retry.
+                    </Text>
+                  </TouchableOpacity>
+                ) : approvers.length === 0 ? (
+                  <View style={styles.dropdownItem}>
+                    <Text
+                      style={[
+                        styles.dropdownItemText,
+                        { color: theme.colors.textSecondary },
+                      ]}
+                    >
+                      No approvers found
+                    </Text>
+                  </View>
+                ) : (
+                  approvers.map((approver, index) => (
+                    <TouchableOpacity
+                      key={index}
+                      style={[
+                        styles.dropdownItem,
+                        {
+                          borderBottomColor:
+                            index < approvers.length - 1
+                              ? theme.colors.divider
+                              : "transparent",
+                          borderBottomWidth:
+                            index < approvers.length - 1 ? 1 : 0,
+                          backgroundColor:
+                            formData.leaveApprover === approver.email
+                              ? theme.colors.highlight
+                              : theme.colors.surfacePrimary,
+                        },
+                      ]}
+                      onPress={() => {
+                        setFormData({
+                          ...formData,
+                          leaveApprover: approver.email,
+                          leaveApproverName: approver.name,
+                        });
+                        setShowApproverDropdown(false);
+                      }}
+                    >
+                      <Text
+                        style={[
+                          styles.dropdownItemText,
+                          { color: theme.colors.textPrimary },
+                        ]}
+                      >
+                        {approver.name}
+                      </Text>
+                    </TouchableOpacity>
+                  ))
+                )}
+              </View>
+            )}
+          </View>
+
+          {/* Leave Approver Name Field */}
+          <View style={styles.fieldContainer}>
+            <Text style={[styles.label, { color: theme.colors.textPrimary }]}>
+              Leave Approver Name
+            </Text>
+            <TextInput
+              style={[
+                styles.input,
+                {
+                  backgroundColor: theme.colors.inputBackground,
+                  borderColor: theme.colors.inputBorder,
+                  color: theme.colors.textPrimary,
+                },
+              ]}
+              value={formData.leaveApproverName}
+              editable={false}
+              placeholderTextColor={theme.colors.inputPlaceholder}
+            />
+          </View>
+
+          {/* Section Divider */}
+          <View style={styles.sectionContainer}>
+            <Text
+              style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}
+            >
+              Attachments
+            </Text>
+          </View>
+
+          {/* Attachments Field */}
+          <View style={styles.fieldContainer}>
+            <TouchableOpacity
+              style={[
+                styles.attachmentContainer,
+                {
+                  backgroundColor: theme.colors.inputBackground,
+                  borderColor: theme.colors.inputBorder,
+                },
+              ]}
+              // Implement attachment handling logic here
+            >
+              <View style={styles.attachmentContent}>
+                <Ionicons
+                  name="cloud-upload-outline"
+                  size={24}
+                  color={theme.colors.iconSecondary}
+                />
+                <Text
+                  style={[
+                    styles.attachmentText,
+                    { color: theme.colors.textSecondary },
+                  ]}
+                >
+                  Upload images or documents
+                </Text>
+              </View>
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
+      </Pressable>
 
       <View
         style={[
@@ -1033,6 +1043,7 @@ const styles = StyleSheet.create({
     padding: 24,
     alignItems: "center",
     justifyContent: "center",
+    marginBottom: 16,
   },
   attachmentContent: {
     alignItems: "center",
