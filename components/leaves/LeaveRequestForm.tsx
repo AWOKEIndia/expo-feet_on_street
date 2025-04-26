@@ -36,7 +36,6 @@ interface LeaveRequestData {
   isHalfDay: boolean;
   reason: string;
   leaveApprover: string;
-  leaveApproverName: string;
   attachments: any[];
 }
 
@@ -55,7 +54,6 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
     isHalfDay: false,
     reason: "",
     leaveApprover: "",
-    leaveApproverName: "",
     attachments: [],
   });
 
@@ -67,6 +65,7 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
   const [currentBalance, setCurrentBalance] = useState<number | null>(null);
   const [requestedDays, setRequestedDays] = useState<number>(0);
   const [remainingBalance, setRemainingBalance] = useState<number | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Use the leave approvers hook
   const {
@@ -143,18 +142,17 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
   // Format the approvers from the hook response
   const getFormattedApprovers = () => {
     if (!approvalDetails) return [];
-    const formattedApprovers = [];
+    const formattedApprovers: string[] = [];
 
     if (
       approvalDetails.leave_approvers &&
       approvalDetails.leave_approvers.length > 0
     ) {
-      formattedApprovers.push(
-        ...approvalDetails.leave_approvers.map((approver) => ({
-          email: approver.user,
-          name: approver.name,
-        }))
-      );
+      approvalDetails.leave_approvers.forEach((approver) => {
+        if (approver.name && !formattedApprovers.includes(approver.name)) {
+          formattedApprovers.push(approver.name);
+        }
+      });
     }
 
     // Add department approvers if available
@@ -162,12 +160,11 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
       approvalDetails.department_approvers &&
       approvalDetails.department_approvers.length > 0
     ) {
-      formattedApprovers.push(
-        ...approvalDetails.department_approvers.map((approver) => ({
-          email: approver.user,
-          name: approver.name,
-        }))
-      );
+      approvalDetails.department_approvers.forEach((approver) => {
+        if (approver.name && !formattedApprovers.includes(approver.name)) {
+          formattedApprovers.push(approver.name);
+        }
+      });
     }
 
     return formattedApprovers;
@@ -180,6 +177,14 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
       month: "short",
       day: "numeric",
     });
+  };
+
+  const formatDateForAPI = (date: Date | null): string => {
+    if (!date) return "";
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
   };
 
   const handleDateChange = (
@@ -203,17 +208,93 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
     setFormData({ ...formData, [field]: !formData[field] });
   };
 
-  const handleSubmit = () => {
+  const validateForm = (): boolean => {
+    if (!formData.leaveType) {
+      Alert.alert("Validation Error", "Please select a leave type");
+      return false;
+    }
+
+    if (!formData.fromDate) {
+      Alert.alert("Validation Error", "Please select a from date");
+      return false;
+    }
+
+    if (!formData.toDate) {
+      Alert.alert("Validation Error", "Please select a to date");
+      return false;
+    }
+
+    if (formData.fromDate > formData.toDate) {
+      Alert.alert("Validation Error", "To date cannot be before from date");
+      return false;
+    }
+
+    if (!formData.leaveApprover) {
+      Alert.alert("Validation Error", "Please select a leave approver");
+      return false;
+    }
+
     if (!hasEnoughBalance) {
       Alert.alert(
         "Insufficient Leave Balance",
-        "You don't have enough leave balance for this request.",
-        [{ text: "OK" }]
+        "You don't have enough leave balance for this request."
       );
-      return;
+      return false;
     }
-    onSubmit(formData);
+
+    return true;
   };
+
+  const handleSubmit = async () => {
+    if (!validateForm()) return;
+
+    setIsSubmitting(true);
+
+    try {
+      const payload = {
+        company: employeeProfile?.company,
+        doctype: "Leave Application",
+        employee: employeeProfile?.name,
+        from_date: formatDateForAPI(formData.fromDate),
+        to_date: formatDateForAPI(formData.toDate),
+        description: formData.reason,
+        leave_type: formData.leaveType,
+        leave_approver: formData.leaveApprover,
+        half_day: formData.isHalfDay,
+        posting_date: formatDateForAPI(new Date()),
+      };
+      console.log(payload)
+
+      const response = await fetch(
+        `${process.env.EXPO_PUBLIC_BASE_URL}/api/resource/Leave Application/`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${accessToken}`,
+          },
+          body: JSON.stringify(payload),
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const result = await response.json();
+      onSubmit(formData);
+      Alert.alert("Success", "Leave application submitted successfully");
+    } catch (error) {
+      console.error("Error submitting leave application:", error);
+      Alert.alert(
+        "Error",
+        "Failed to submit leave application. Please try again."
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   // For handling dropdown outside tap
   useEffect(() => {
     if (showLeaveTypeDropdown || showApproverDropdown) {
@@ -749,13 +830,13 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
                     style={[
                       styles.inputText,
                       {
-                        color: formData.leaveApproverName
+                        color: formData.leaveApprover
                           ? theme.colors.textPrimary
                           : theme.colors.inputPlaceholder,
                       },
                     ]}
                   >
-                    {formData.leaveApproverName || "Select Approver"}
+                    {formData.leaveApprover || "Select Approver"}
                   </Text>
                   <Ionicons
                     name={showApproverDropdown ? "chevron-up" : "chevron-down"}
@@ -817,7 +898,7 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
                           borderBottomWidth:
                             index < approvers.length - 1 ? 1 : 0,
                           backgroundColor:
-                            formData.leaveApprover === approver.email
+                            formData.leaveApprover === approver
                               ? theme.colors.highlight
                               : theme.colors.surfacePrimary,
                         },
@@ -825,8 +906,7 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
                       onPress={() => {
                         setFormData({
                           ...formData,
-                          leaveApprover: approver.email,
-                          leaveApproverName: approver.name,
+                          leaveApprover: approver,
                         });
                         setShowApproverDropdown(false);
                       }}
@@ -837,33 +917,13 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
                           { color: theme.colors.textPrimary },
                         ]}
                       >
-                        {approver.name}
+                        {approver}
                       </Text>
                     </TouchableOpacity>
                   ))
                 )}
               </View>
             )}
-          </View>
-
-          {/* Leave Approver Name Field */}
-          <View style={styles.fieldContainer}>
-            <Text style={[styles.label, { color: theme.colors.textPrimary }]}>
-              Leave Approver Name
-            </Text>
-            <TextInput
-              style={[
-                styles.input,
-                {
-                  backgroundColor: theme.colors.inputBackground,
-                  borderColor: theme.colors.inputBorder,
-                  color: theme.colors.textPrimary,
-                },
-              ]}
-              value={formData.leaveApproverName}
-              editable={false}
-              placeholderTextColor={theme.colors.inputPlaceholder}
-            />
           </View>
 
           {/* Section Divider */}
@@ -927,13 +987,17 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
             },
           ]}
           onPress={handleSubmit}
-          disabled={!hasEnoughBalance}
+          disabled={!hasEnoughBalance || isSubmitting}
         >
-          <Text
-            style={[styles.saveButtonText, { color: theme.baseColors.white }]}
-          >
-            Save
-          </Text>
+          {isSubmitting ? (
+            <ActivityIndicator size="small" color={theme.baseColors.white} />
+          ) : (
+            <Text
+              style={[styles.saveButtonText, { color: theme.baseColors.white }]}
+            >
+              Save
+            </Text>
+          )}
         </TouchableOpacity>
       </View>
     </KeyboardAvoidingView>
