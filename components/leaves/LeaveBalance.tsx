@@ -1,18 +1,18 @@
 import React, { useRef, useState } from "react";
 import {
-  View,
-  Text,
-  ScrollView,
-  StyleSheet,
   ActivityIndicator,
   Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
 } from "react-native";
-import { AnimatedCircularProgress } from "react-native-circular-progress";
+
 import { Ionicons } from "@expo/vector-icons";
 import { TouchableOpacity } from "react-native";
-import LeaveRequestForm from "./LeaveRequestForm";
+import { AnimatedCircularProgress } from "react-native-circular-progress";
 import Modal from "react-native-modal";
-
+import LeaveRequestForm from "./LeaveRequests/LeaveRequestForm";
 
 type LeaveBalanceType = {
   type: string;
