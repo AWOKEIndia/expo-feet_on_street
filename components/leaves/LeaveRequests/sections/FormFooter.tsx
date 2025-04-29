@@ -8,15 +8,17 @@ interface FormFooterProps {
   hasEnoughBalance: boolean;
   handleSubmit: () => void;
   isSubmitting: boolean;
+  isLeaveWithoutPay?: boolean;
 }
 
 const FormFooter: React.FC<FormFooterProps> = ({
   hasEnoughBalance,
   handleSubmit,
   isSubmitting,
+  isLeaveWithoutPay = false,
 }) => {
   const { theme } = useTheme();
-  const isDisabled = isSubmitting || (!hasEnoughBalance);
+  const isDisabled = isSubmitting || (!hasEnoughBalance && !isLeaveWithoutPay);
 
   return (
     <View
@@ -25,14 +27,14 @@ const FormFooter: React.FC<FormFooterProps> = ({
         {
           backgroundColor: theme.colors.surfacePrimary,
           borderTopColor: theme.colors.divider,
-          },
-        ]}
+        },
+      ]}
     >
       <TouchableOpacity
         style={[
           sharedStyles.saveButton,
           {
-            backgroundColor: hasEnoughBalance
+            backgroundColor: (hasEnoughBalance || isLeaveWithoutPay)
               ? theme.colors.buttonPrimary
               : theme.colors.buttonDisabled,
           },

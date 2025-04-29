@@ -5,7 +5,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Pressable,
-  ScrollView
+  ScrollView,
 } from "react-native";
 import { LeaveRequestData, LeaveRequestFormProps } from "./types";
 import React, { useEffect, useMemo, useState } from "react";
@@ -151,8 +151,8 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
   const formatDateForAPI = (date: Date | null): string => {
     if (!date) return "";
     const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
     return `${year}-${month}-${day}`;
   };
 
@@ -214,7 +214,14 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
       return false;
     }
 
-    if (!hasEnoughBalance) {
+    // Find the selected leave type to check if it's LWP
+    const selectedLeaveType = leaveTypes.find(
+      (type) => type.name === formData.leaveType
+    );
+    const isLeaveWithoutPay = selectedLeaveType?.is_lwp || false;
+
+    // Only check balance if it's not a Leave Without Pay type
+    if (!isLeaveWithoutPay && !hasEnoughBalance) {
       Alert.alert(
         "Insufficient Leave Balance",
         "You don't have enough leave balance for this request."
@@ -276,7 +283,10 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
 
   return (
     <KeyboardAvoidingView
-      style={[sharedStyles.container, { backgroundColor: theme.colors.background }]}
+      style={[
+        sharedStyles.container,
+        { backgroundColor: theme.colors.background },
+      ]}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <FormHeader onCancel={onCancel} />
@@ -290,7 +300,10 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
         }}
       >
         <ScrollView
-          style={[sharedStyles.form, { backgroundColor: theme.colors.background }]}
+          style={[
+            sharedStyles.form,
+            { backgroundColor: theme.colors.background },
+          ]}
           keyboardShouldPersistTaps="handled"
         >
           <LeaveTypeSection
@@ -325,10 +338,7 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
             isDark={isDark}
           />
 
-          <ReasonSection
-            formData={formData}
-            setFormData={setFormData}
-          />
+          <ReasonSection formData={formData} setFormData={setFormData} />
 
           <ApproverSection
             formData={formData}
@@ -350,6 +360,9 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
         hasEnoughBalance={hasEnoughBalance}
         handleSubmit={handleSubmit}
         isSubmitting={isSubmitting}
+        isLeaveWithoutPay={
+          !!leaveTypes.find((type) => type.name === formData.leaveType)?.is_lwp
+        }
       />
     </KeyboardAvoidingView>
   );
