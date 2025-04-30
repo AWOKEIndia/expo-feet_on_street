@@ -6,7 +6,7 @@ export interface LeaveRequestData {
   isHalfDay: boolean;
   reason: string;
   leaveApprover: string;
-  attachments: any[];
+  attachments: Attachment[];
 }
 
 export interface LeaveRequestFormProps {
@@ -23,4 +23,11 @@ export interface LeaveType {
 export interface ApproverDetails {
   leave_approvers: Array<{ name: string }>;
   department_approvers: Array<{ name: string }>;
+}
+
+export interface Attachment {
+  uri: string;
+  name: string;
+  type: string;
+  size?: number;
 }

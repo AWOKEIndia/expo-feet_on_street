@@ -7,7 +7,7 @@ import {
   Pressable,
   ScrollView,
 } from "react-native";
-import { LeaveRequestData, LeaveRequestFormProps } from "./types";
+import { LeaveRequestData, LeaveRequestFormProps, Attachment } from "./types";
 import React, { useEffect, useMemo, useState } from "react";
 
 import { AppState } from "react-native";
@@ -188,6 +188,10 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
     setFormData({ ...formData, [field]: !formData[field] });
   };
 
+  const handleAttachmentsChange = (attachments: Attachment[]) => {
+    setFormData({ ...formData, attachments });
+  };
+
   const validateForm = (): boolean => {
     if (!formData.leaveType) {
       Alert.alert("Validation Error", "Please select a leave type");
@@ -232,27 +236,30 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
     return true;
   };
 
-  const handleSubmit = async () => {
+  const handleSubmitWithDirectUpload = async () => {
     if (!validateForm()) return;
 
     setIsSubmitting(true);
 
     try {
       const payload = {
-        company: employeeProfile?.company,
-        doctype: "Leave Application",
         employee: employeeProfile?.name,
+        leave_type: formData.leaveType,
         from_date: formatDateForAPI(formData.fromDate),
         to_date: formatDateForAPI(formData.toDate),
+        half_day: formData.isHalfDay ? 1 : 0,
         description: formData.reason,
-        leave_type: formData.leaveType,
         leave_approver: formData.leaveApprover,
-        half_day: formData.isHalfDay,
-        posting_date: formatDateForAPI(new Date()),
+        status: "Open",
       };
 
+      console.log(
+        "Submitting leave application with payload:",
+        JSON.stringify(payload)
+      );
+
       const response = await fetch(
-        `${process.env.EXPO_PUBLIC_BASE_URL}/api/resource/Leave Application/`,
+        `${process.env.EXPO_PUBLIC_BASE_URL}/api/resource/Leave Application`,
         {
           method: "POST",
           headers: {
@@ -264,17 +271,85 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
       );
 
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        const errorData = await response.text();
+        console.error(
+          `Leave application submission failed: ${response.status}`,
+          errorData
+        );
+        throw new Error(
+          `Leave application submission failed with status ${response.status}`
+        );
       }
 
       const result = await response.json();
+      const leaveDocName = result.data.name;
+      console.log("Leave application created with ID:", leaveDocName);
+
+      // Now upload each attachment directly to the created document
+      let uploadErrors = [];
+      for (const attachment of formData.attachments) {
+        try {
+          console.log(
+            `Uploading attachment for ${leaveDocName}: ${attachment.name}`
+          );
+
+          // Create FormData for this file
+          const fileFormData = new FormData();
+
+          // Add file
+          const fileInfo = {
+            uri: attachment.uri,
+            name: attachment.name,
+            type: attachment.type,
+          };
+          fileFormData.append("file", fileInfo as any);
+
+          // Add required metadata - with a valid docname this time
+          fileFormData.append("doctype", "Leave Application");
+          fileFormData.append("docname", leaveDocName);
+          fileFormData.append("is_private", "1");
+          fileFormData.append("folder", "Home/Attachments");
+
+          // Upload the file
+          const uploadResponse = await fetch(
+            `${process.env.EXPO_PUBLIC_BASE_URL}/api/method/upload_file`,
+            {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${accessToken}`,
+                Accept: "application/json",
+              },
+              body: fileFormData,
+            }
+          );
+
+          if (!uploadResponse.ok) {
+            uploadErrors.push(attachment.name);
+          }
+        } catch (error) {
+          console.error(`Error uploading ${attachment.name}:`, error);
+          uploadErrors.push(attachment.name);
+        }
+      }
+
+      if (uploadErrors.length > 0) {
+        Alert.alert(
+          "Partial Success",
+          `Leave application submitted successfully, but ${uploadErrors.length} attachment(s) could not be uploaded.`
+        );
+      } else if (formData.attachments.length > 0) {
+        console.log("All attachments uploaded successfully");
+      }
+
       onSubmit(formData);
       Alert.alert("Success", "Leave application submitted successfully");
     } catch (error) {
-      console.error("Error submitting leave application:", error);
+      console.error("Error in submission process:", error);
       Alert.alert(
         "Error",
-        "Failed to submit leave application. Please try again."
+        error instanceof Error && error.message
+          ? error.message
+          : "Failed to submit leave application. Please try again."
       );
     } finally {
       setIsSubmitting(false);
@@ -352,13 +427,16 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
             refreshApprovers={refreshApprovers}
           />
 
-          <AttachmentsSection />
+          <AttachmentsSection
+            attachments={formData.attachments}
+            setAttachments={handleAttachmentsChange}
+          />
         </ScrollView>
       </Pressable>
 
       <FormFooter
         hasEnoughBalance={hasEnoughBalance}
-        handleSubmit={handleSubmit}
+        handleSubmit={handleSubmitWithDirectUpload}
         isSubmitting={isSubmitting}
         isLeaveWithoutPay={
           !!leaveTypes.find((type) => type.name === formData.leaveType)?.is_lwp
