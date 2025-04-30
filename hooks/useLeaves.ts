@@ -1,7 +1,7 @@
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useCallback, useEffect } from "react";
 
 export interface LeaveApplication {
-  name:string;
+  name: string;
   id: string;
   leave_type: string;
   from_date: string;
@@ -18,7 +18,9 @@ const useLeaveApplications = (accessToken: string, employeeId: string) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
   const [refreshing, setRefreshing] = useState(false);
-  const [leaveApplications, setLeaveApplications] = useState<LeaveApplication[]>([]);
+  const [leaveApplications, setLeaveApplications] = useState<
+    LeaveApplication[]
+  >([]);
 
   const cacheRef = useRef<LeaveApplicationsCache>({});
   const cacheKey = `leaves_${employeeId}`;
@@ -44,20 +46,18 @@ const useLeaveApplications = (accessToken: string, employeeId: string) => {
           },
           body: JSON.stringify({
             employee: employeeId,
-            limit: 10
+            limit: 10,
           }),
         }
       );
 
       if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(
-          `HTTP error! Status: ${response.status}. ${errorText}`
-        );
+        throw new Error(`HTTP error! Status: ${response.status}. ${errorText}`);
       }
 
       const result = await response.json();
-      console.log("Leave applications retrieved:", result);
+      console.log("Leave applications retrieved");
 
       if (result.message) {
         const applications = Array.isArray(result.message)
@@ -96,7 +96,7 @@ const useLeaveApplications = (accessToken: string, employeeId: string) => {
     loading,
     error,
     refreshing,
-    refresh
+    refresh,
   };
 };
 

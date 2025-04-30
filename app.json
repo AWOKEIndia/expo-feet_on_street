@@ -23,7 +23,8 @@
       },
       "permissions": [
         "android.permission.CAMERA",
-        "android.permission.RECORD_AUDIO"
+        "android.permission.RECORD_AUDIO",
+        "android.permission.READ_EXTERNAL_STORAGE"
       ],
       "package": "com.awokeindia.feetonstreet"
     },
@@ -59,11 +60,11 @@
           "isAccessMediaLocationEnabled": true
         }
       ],
-      "@react-native-community/datetimepicker",
-      [
+       "@react-native-community/datetimepicker",
+       [
         "expo-image-picker",
         {
-          "photosPermission": "The app accesses your photos to let you share them with your friends."
+          "photosPermission": "Allow $(PRODUCT_NAME) to access your photos."
         }
       ]
     ],

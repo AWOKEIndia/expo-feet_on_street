@@ -1,7 +1,7 @@
 import { useAuthContext } from "@/contexts/AuthContext";
 import { useTheme } from "@/contexts/ThemeContext";
 import { Ionicons } from "@expo/vector-icons";
-import React, { useRef, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import {
   ScrollView,
   StyleSheet,
@@ -12,12 +12,15 @@ import {
   RefreshControl,
   ActivityIndicator,
 } from "react-native";
-import { AnimatedCircularProgress } from "react-native-circular-progress";
 import AttendanceView from "@/components/attendance/AttendanceView";
 import useAttendance from "@/hooks/useAttendance";
 import useLeaveApplications from "@/hooks/useLeaves";
-import dayjs from "dayjs";
+import useAttendanceRequests from "@/hooks/useAttendanceRequest";
+import useLeaveBalance from "@/hooks/useLeaveBalance";
 import LeaveDetailsModal from "@/components/leaves/LeaveDetails";
+import AttendanceDetailsModal from "@/components/attendance/AttendanceDetails";
+import LeaveBalance from "@/components/leaves/LeaveBalance";
+import dayjs from "dayjs";
 
 type ActivityType = {
   name: string;
@@ -31,49 +34,53 @@ type ActivityType = {
 
 const AttendanceAndLeavesScreen = () => {
   const { theme, isDark } = useTheme();
-  const { accessToken } = useAuthContext();
+  const { accessToken, employeeProfile } = useAuthContext();
   const [activeTab, setActiveTab] = useState("attendance");
-  const scrollViewRef = useRef(null);
-  // Add these state variables for the modal
   const [selectedLeaveId, setSelectedLeaveId] = useState<string | null>(null);
   const [isModalVisible, setIsModalVisible] = useState(false);
 
-  const employeeId = "HR-EMP-00001";
+  const [selectedAttendanceId, setSelectedAttendanceId] = useState<
+    string | null
+  >(null);
+  const [isAttendanceModalVisible, setIsAttendanceModalVisible] =
+    useState(false);
+
+  const [employeeId, setEmployeeId] = useState("");
+
+  useEffect(() => {
+    setEmployeeId(employeeProfile?.name as string);
+  }, [employeeProfile]);
 
   const attendanceResource = useAttendance(accessToken ?? "", employeeId);
-
   const leaveResource = useLeaveApplications(accessToken ?? "", employeeId);
+  const attendanceRequestResource = useAttendanceRequests(
+    accessToken ?? "",
+    employeeId
+  );
 
-  const leaveBalances = [
-    {
-      type: "Casual Leave",
-      used: 1,
-      total: 12,
-      color: theme.statusColors.error,
-    },
-    {
-      type: "Privilege Leave",
-      used: 6.806,
-      total: 15,
-      color: theme.brandColors.primary,
-    },
-    {
-      type: "Sick Leave",
-      used: 7,
-      total: 10,
-      color: theme.statusColors.warning,
-    },
-    {
-      type: "Compensatory Off",
-      used: 4,
-      total: 5,
-      color: theme.colors.textPrimary,
-    },
-  ];
+  const leaveBalanceResource = useLeaveBalance(accessToken ?? "", employeeId);
+
+  const leaveBalances = useMemo(() => {
+    const leaveTypeColors = {
+      "Casual Leave": theme.statusColors.success,
+      "Privilege Leave": theme.brandColors.primary,
+      "Sick Leave": theme.statusColors.error,
+      "Compensatory Off": theme.colors.textPrimary,
+    };
+
+    return leaveBalanceResource.data.map((balance) => ({
+      type: balance.leave_type,
+      used: balance.used_leaves,
+      total: balance.total_leaves,
+      color:
+        leaveTypeColors[balance.leave_type as keyof typeof leaveTypeColors] ||
+        theme.colors.textPrimary,
+    }));
+  }, [leaveBalanceResource.data, theme]);
 
   // Convert leave application data to activity format
   const leaveActivities = leaveResource.data.map((leave) => ({
-    name: leave.name, // Add name property
+    name: leave.name,
     id: leave.name,
     type: "leave" as const,
     category: leave.leave_type,
@@ -82,29 +89,20 @@ const AttendanceAndLeavesScreen = () => {
     status: leave.status,
   }));
 
-  console.log("Hey", leaveActivities)
-
-  // Placeholder attendance data until integrated with real data
-  const attendanceActivities: ActivityType[] = [
-    {
-      name: "ATT-2", // Add name field
-      id: "2",
-      type: "attendance",
-      category: "Work From Home",
-      date: "4 Mar",
-      duration: "1d",
-      status: "Submitted",
-    },
-    {
-      name: "ATT-4", // Add name field
-      id: "4",
-      type: "attendance",
-      category: "On Duty",
-      date: "6 Jan",
-      duration: "1d",
-      status: "Submitted",
-    },
-  ];
+  // Convert attendance request data to activity format
+  const attendanceActivities: ActivityType[] =
+    attendanceRequestResource.data.map((request) => ({
+      name: request.name,
+      id: request.name,
+      type: "attendance" as const,
+      category: request.reason,
+      date: formatDateRange(request.from_date, request.to_date),
+      duration: `${attendanceRequestResource.calculateDays(
+        request.from_date,
+        request.to_date
+      )}d`,
+      status: request.status,
+    }));
 
   // Function to format date range in a readable format
   function formatDateRange(fromDate: string, toDate: string): string {
@@ -127,14 +125,23 @@ const AttendanceAndLeavesScreen = () => {
     if (item.type === "leave") {
       setSelectedLeaveId(item.id);
       setIsModalVisible(true);
+    } else if (item.type === "attendance") {
+      setSelectedAttendanceId(item.id);
+      attendanceRequestResource.selectAttendanceById?.(item.id);
+      setIsAttendanceModalVisible(true);
     }
-    // Handle attendance type click if needed
   };
 
   // Function to close the modal
   const handleCloseModal = () => {
     setIsModalVisible(false);
     setSelectedLeaveId(null);
+  };
+
+  const handleCloseAttendanceModal = () => {
+    setIsAttendanceModalVisible(false);
+    setSelectedAttendanceId(null);
+    attendanceRequestResource.clearSelectedAttendance?.();
   };
 
   const TabButtons = () => (
@@ -196,166 +203,6 @@ const AttendanceAndLeavesScreen = () => {
     </View>
   );
 
-  const LeaveBalanceCards = () => (
-    <View style={[styles.leaveBalanceContainer, { paddingBottom: 8 }]}>
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        ref={scrollViewRef}
-        contentContainerStyle={{ paddingVertical: 6 }}
-      >
-        {leaveBalances.map((leave, index) => {
-          const fillPercentage =
-            leave.total > 0
-              ? ((leave.total - leave.used) / leave.total) * 100
-              : 0;
-          const remainingLeaves = leave.total - leave.used;
-
-          return (
-            <View
-              key={index}
-              style={[
-                styles.leaveBalanceCard,
-                {
-                  backgroundColor: theme.colors.surfacePrimary,
-                  ...Platform.select({
-                    ios: {
-                      shadowColor: "#000",
-                      shadowOffset: { width: 0, height: 2 },
-                      shadowOpacity: isDark ? 0.22 : 0.15,
-                      shadowRadius: 3,
-                    },
-                    android: {
-                      elevation: 4,
-                    },
-                  }),
-                },
-              ]}
-            >
-              <View style={styles.leaveBalanceProgress}>
-                <View style={styles.gaugeContainer}>
-                  <View style={[styles.gaugeLabel, styles.startLabel]}>
-                    <Text
-                      style={[
-                        styles.gaugeLabelText,
-                        { color: theme.colors.textSecondary },
-                      ]}
-                    >
-                      0
-                    </Text>
-                  </View>
-
-                  <AnimatedCircularProgress
-                    size={100}
-                    width={8}
-                    fill={fillPercentage}
-                    tintColor={leave.color}
-                    backgroundColor={
-                      isDark ? theme.colors.surfaceSecondary : "#f0f0f0"
-                    }
-                    arcSweepAngle={240}
-                    rotation={240}
-                    lineCap="round"
-                  >
-                    {() => (
-                      <View style={styles.gaugeTextContainer}>
-                        <Text
-                          style={[
-                            styles.gaugeValueText,
-                            { color: theme.colors.textPrimary },
-                          ]}
-                        >
-                          {remainingLeaves.toFixed(
-                            remainingLeaves % 1 === 0 ? 0 : 1
-                          )}
-                        </Text>
-                        <Text
-                          style={[
-                            styles.gaugeUnitText,
-                            { color: theme.colors.textSecondary },
-                          ]}
-                        >
-                          left
-                        </Text>
-                      </View>
-                    )}
-                  </AnimatedCircularProgress>
-
-                  <View style={[styles.gaugeLabel, styles.endLabel]}>
-                    <Text
-                      style={[
-                        styles.gaugeLabelText,
-                        { color: theme.colors.textSecondary },
-                      ]}
-                    >
-                      {leave.total}
-                    </Text>
-                  </View>
-                </View>
-              </View>
-              <Text
-                style={[
-                  styles.leaveBalanceType,
-                  { color: theme.colors.textPrimary, marginTop: 12 },
-                ]}
-              >
-                {leave.type}
-              </Text>
-              <Text
-                style={[
-                  styles.leaveBalanceDetails,
-                  { color: theme.colors.textSecondary },
-                ]}
-              >
-                {leave.used.toFixed(leave.used % 1 === 0 ? 0 : 1)}/
-                {leave.total.toFixed(leave.total % 1 === 0 ? 0 : 1)} used
-              </Text>
-            </View>
-          );
-        })}
-      </ScrollView>
-    </View>
-  );
-
-  const RequestLeaveButton = () => (
-    <View style={styles.requestButtonsContainer}>
-      <TouchableOpacity
-        style={[
-          styles.requestButton,
-          {
-            backgroundColor: theme.colors.buttonPrimary,
-            ...Platform.select({
-              ios: {
-                shadowColor: "#000",
-                shadowOffset: { width: 0, height: 2 },
-                shadowOpacity: 0.2,
-                shadowRadius: 3,
-              },
-              android: {
-                elevation: 5,
-              },
-            }),
-          },
-        ]}
-      >
-        <Ionicons
-          name="calendar-outline"
-          size={20}
-          color={theme.colors.textInverted}
-          style={styles.requestButtonIcon}
-        />
-        <Text
-          style={[
-            styles.requestButtonText,
-            { color: theme.colors.textInverted },
-          ]}
-        >
-          Request a Leave
-        </Text>
-      </TouchableOpacity>
-    </View>
-  );
-
   const renderActivityItem = ({ item }: { item: ActivityType }) => {
     const getIconName = (type: string, category: string) => {
       if (type === "leave") {
@@ -375,6 +222,12 @@ const AttendanceAndLeavesScreen = () => {
           return theme.statusColors.error;
         case "pending":
           return theme.statusColors.warning;
+        case "submitted":
+          return theme.statusColors.success;
+        case "draft":
+          return theme.colors.textInfo;
+        case "cancelled":
+          return theme.statusColors.error;
         default:
           return theme.statusColors.info;
       }
@@ -464,7 +317,12 @@ const AttendanceAndLeavesScreen = () => {
     const currentActivities =
       activeTab === "attendance" ? attendanceActivities : leaveActivities;
 
-    const isLoading = activeTab === "leaves" ? leaveResource.loading : false;
+    const isLoading =
+      activeTab === "leaves"
+        ? leaveResource.loading
+        : activeTab === "attendance"
+        ? attendanceRequestResource.loading
+        : false;
 
     return (
       <View style={styles.recentActivitySection}>
@@ -504,6 +362,7 @@ const AttendanceAndLeavesScreen = () => {
       </View>
     );
   };
+
   return (
     <View
       style={[styles.container, { backgroundColor: theme.colors.background }]}
@@ -516,13 +375,16 @@ const AttendanceAndLeavesScreen = () => {
           <RefreshControl
             refreshing={
               activeTab === "attendance"
-                ? attendanceResource.refreshing
-                : leaveResource.refreshing
+                ? attendanceRequestResource.refreshing
+                : leaveResource.refreshing || leaveBalanceResource.refreshing
             }
             onRefresh={
               activeTab === "attendance"
-                ? attendanceResource.refresh
-                : leaveResource.refresh
+                ? attendanceRequestResource.refresh
+                : () => {
+                    leaveResource.refresh();
+                    leaveBalanceResource.refresh();
+                  }
             }
             colors={[theme.brandColors.primary]}
             tintColor={theme.brandColors.primary}
@@ -530,25 +392,43 @@ const AttendanceAndLeavesScreen = () => {
         }
       >
         {activeTab === "attendance" ? (
-          <AttendanceView
-            theme={theme}
-            isDark={isDark}
-            attendanceResource={attendanceResource}
-            recentActivities={attendanceActivities}
-          />
+          <>
+            <AttendanceView
+              theme={theme}
+              isDark={isDark}
+              attendanceResource={attendanceResource}
+            />
+            <RecentActivitySection />
+          </>
         ) : (
           <>
-            <LeaveBalanceCards />
-            <RequestLeaveButton />
+            <LeaveBalance
+              theme={theme}
+              isDark={isDark}
+              leaveBalances={leaveBalances}
+              loading={leaveBalanceResource.loading}
+              refreshing={leaveBalanceResource.refreshing}
+              refresh={leaveBalanceResource.refresh}
+            />
             <RecentActivitySection />
           </>
         )}
       </ScrollView>
 
-      {/* Add the Leave Details Modal */}
+      <AttendanceDetailsModal
+        visible={isAttendanceModalVisible}
+        attendanceId={selectedAttendanceId}
+        attendanceDetails={attendanceRequestResource.selectedAttendance}
+        onClose={handleCloseAttendanceModal}
+        theme={theme}
+        loading={attendanceRequestResource.loading}
+        calculateDays={attendanceRequestResource.calculateDays}
+      />
+
       <LeaveDetailsModal
         visible={isModalVisible}
         leaveId={selectedLeaveId}
+        employee={employeeId}
         accessToken={accessToken ?? ""}
         onClose={handleCloseModal}
         theme={theme}
@@ -576,77 +456,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   tabButtonText: {
-    fontSize: 16,
-    fontWeight: "500",
-  },
-  leaveBalanceContainer: {
-    paddingLeft: 16,
-  },
-  leaveBalanceCard: {
-    width: 170,
-    height: 190,
-    padding: 16,
-    borderRadius: 12,
-    marginRight: 12,
-  },
-  leaveBalanceProgress: {
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  gaugeContainer: {
-    position: "relative",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  gaugeLabel: {
-    position: "absolute",
-    top: 78,
-  },
-  startLabel: {
-    left: 0,
-  },
-  endLabel: {
-    right: -2,
-  },
-  gaugeLabelText: {
-    fontSize: 12,
-    fontWeight: "500",
-  },
-  gaugeTextContainer: {
-    alignItems: "center",
-  },
-  gaugeValueText: {
-    fontSize: 24,
-    fontWeight: "600",
-  },
-  gaugeUnitText: {
-    fontSize: 12,
-  },
-  leaveBalanceType: {
-    fontSize: 16,
-    fontWeight: "500",
-    textAlign: "center",
-  },
-  leaveBalanceDetails: {
-    fontSize: 14,
-    textAlign: "center",
-    marginTop: 4,
-  },
-  requestButtonsContainer: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-  },
-  requestButton: {
-    borderRadius: 8,
-    paddingVertical: 14,
-    alignItems: "center",
-    justifyContent: "center",
-    flexDirection: "row",
-  },
-  requestButtonIcon: {
-    marginRight: 8,
-  },
-  requestButtonText: {
     fontSize: 16,
     fontWeight: "500",
   },
@@ -697,7 +506,8 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 22,
     fontWeight: "600",
-    marginBottom: 8,
+    marginBottom: 12,
+    marginTop: 8,
   },
   loadingContainer: {
     padding: 20,
