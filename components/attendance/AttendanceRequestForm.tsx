@@ -18,6 +18,8 @@ import { Ionicons } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { AppState } from "react-native";
 import { useAuthContext } from "@/contexts/AuthContext";
+import useReasonOptions from "@/hooks/useAttendanceReason";
+import useShift from "@/hooks/useShift";
 
 interface AttendanceRequestFormProps {
   onSubmit: (data: AttendanceRequestData) => void;
@@ -41,6 +43,20 @@ const AttendanceRequestForm: React.FC<AttendanceRequestFormProps> = ({
   const { theme, isDark } = useTheme();
   const { accessToken, employeeProfile } = useAuthContext();
 
+  const {
+    data: reasonOptions,
+    loading: reasonsLoading,
+    error: reasonsError,
+    refresh: refreshReasons
+  } = useReasonOptions(accessToken as string);
+
+  const {
+    data: shiftTypes,
+    loading: shiftsLoading,
+    error: shiftsError,
+    refresh: refreshShifts
+  } = useShift(accessToken as string);
+
   const [formData, setFormData] = useState<AttendanceRequestData>({
     fromDate: null,
     toDate: null,
@@ -58,7 +74,18 @@ const AttendanceRequestForm: React.FC<AttendanceRequestFormProps> = ({
   const [appState, setAppState] = useState(AppState.currentState);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Handle app state changes to properly close date pickers if app goes to background
+  useEffect(() => {
+    if (reasonsError) {
+      console.error("Error fetching reason options:", reasonsError);
+    }
+  }, [reasonsError]);
+
+  useEffect(() => {
+    if (shiftsError) {
+      console.error("Error fetching shift types:", shiftsError);
+    }
+  }, [shiftsError]);
+
   useEffect(() => {
     const subscription = AppState.addEventListener("change", (nextAppState) => {
       if (appState === "active" && nextAppState.match(/inactive|background/)) {
@@ -72,9 +99,6 @@ const AttendanceRequestForm: React.FC<AttendanceRequestFormProps> = ({
       subscription.remove();
     };
   }, [appState]);
-
-  const shifts = ["CLF"];
-  const reasons = ["Work From Home", "On Duty"];
 
   const formatDate = (date: Date | null): string => {
     if (!date) return "";
@@ -519,51 +543,62 @@ const AttendanceRequestForm: React.FC<AttendanceRequestFormProps> = ({
                   },
                 ]}
               >
-                {shifts.map((shift, index) => (
-                  <TouchableOpacity
-                    key={index}
-                    style={[
-                      styles.dropdownItem,
-                      {
-                        borderBottomColor:
-                          index < shifts.length - 1
-                            ? theme.colors.divider
-                            : "transparent",
-                        borderBottomWidth: index < shifts.length - 1 ? 1 : 0,
-                        backgroundColor:
-                          formData.shift === shift
-                            ? theme.colors.highlight
-                            : theme.colors.surfacePrimary,
-                      },
-                    ]}
-                    onPress={() => {
-                      setFormData({ ...formData, shift });
-                      setShowShiftDropdown(false);
-                    }}
-                  >
-                    <Text
+                {shiftTypes.length > 0 ? (
+                  shiftTypes.map((shift, index) => (
+                    <TouchableOpacity
+                      key={index}
                       style={[
-                        styles.dropdownItemText,
-                        { color: theme.colors.textPrimary },
+                        styles.dropdownItem,
+                        {
+                          borderBottomColor:
+                            index < shiftTypes.length - 1
+                              ? theme.colors.divider
+                              : "transparent",
+                          borderBottomWidth: index < shiftTypes.length - 1 ? 1 : 0,
+                          backgroundColor:
+                            formData.shift === shift.name
+                              ? theme.colors.highlight
+                              : theme.colors.surfacePrimary,
+                        },
                       ]}
+                      onPress={() => {
+                        setFormData({ ...formData, shift: shift.name });
+                        setShowShiftDropdown(false);
+                      }}
                     >
-                      {shift}
+                      <Text
+                        style={[
+                          styles.dropdownItemText,
+                          { color: theme.colors.textPrimary },
+                        ]}
+                      >
+                        {shift.name}
+                      </Text>
+                    </TouchableOpacity>
+                  ))
+                ) : shiftsLoading ? (
+                  <View style={styles.emptyDropdownItem}>
+                    <Text style={[styles.dropdownItemText, { color: theme.colors.textSecondary }]}>
+                      Loading shift types...
                     </Text>
-                  </TouchableOpacity>
-                ))}
+                  </View>
+                ) : (
+                  <View style={styles.emptyDropdownItem}>
+                    <Text style={[styles.dropdownItemText, { color: theme.colors.textSecondary }]}>
+                      No shift types available
+                    </Text>
+                  </View>
+                )}
               </View>
             )}
           </View>
 
           <View style={styles.fieldContainer}>
-            <Text
-              style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}
-            >
-              Reason
-            </Text>
-            <Text style={[styles.label, { color: theme.colors.textPrimary }]}>
-              Reason <Text style={{ color: theme.statusColors.error }}>*</Text>
-            </Text>
+            <View style={styles.reasonHeaderContainer}>
+              <Text style={[styles.label, { color: theme.colors.textPrimary }]}>
+                Reason <Text style={{ color: theme.statusColors.error }}>*</Text>
+              </Text>
+            </View>
             <TouchableOpacity
               style={[
                 styles.dropdownContainer,
@@ -611,38 +646,52 @@ const AttendanceRequestForm: React.FC<AttendanceRequestFormProps> = ({
                   },
                 ]}
               >
-                {reasons.map((reason, index) => (
-                  <TouchableOpacity
-                    key={index}
-                    style={[
-                      styles.dropdownItem,
-                      {
-                        borderBottomColor:
-                          index < reasons.length - 1
-                            ? theme.colors.divider
-                            : "transparent",
-                        borderBottomWidth: index < reasons.length - 1 ? 1 : 0,
-                        backgroundColor:
-                          formData.reason === reason
-                            ? theme.colors.highlight
-                            : theme.colors.surfacePrimary,
-                      },
-                    ]}
-                    onPress={() => {
-                      setFormData({ ...formData, reason });
-                      setShowReasonDropdown(false);
-                    }}
-                  >
-                    <Text
+                {reasonOptions.length > 0 ? (
+                  reasonOptions.map((reason, index) => (
+                    <TouchableOpacity
+                      key={index}
                       style={[
-                        styles.dropdownItemText,
-                        { color: theme.colors.textPrimary },
+                        styles.dropdownItem,
+                        {
+                          borderBottomColor:
+                            index < reasonOptions.length - 1
+                              ? theme.colors.divider
+                              : "transparent",
+                          borderBottomWidth: index < reasonOptions.length - 1 ? 1 : 0,
+                          backgroundColor:
+                            formData.reason === reason
+                              ? theme.colors.highlight
+                              : theme.colors.surfacePrimary,
+                        },
                       ]}
+                      onPress={() => {
+                        setFormData({ ...formData, reason });
+                        setShowReasonDropdown(false);
+                      }}
                     >
-                      {reason}
+                      <Text
+                        style={[
+                          styles.dropdownItemText,
+                          { color: theme.colors.textPrimary },
+                        ]}
+                      >
+                        {reason}
+                      </Text>
+                    </TouchableOpacity>
+                  ))
+                ) : reasonsLoading ? (
+                  <View style={styles.emptyDropdownItem}>
+                    <Text style={[styles.dropdownItemText, { color: theme.colors.textSecondary }]}>
+                      Loading reason options...
                     </Text>
-                  </TouchableOpacity>
-                ))}
+                  </View>
+                ) : (
+                  <View style={styles.emptyDropdownItem}>
+                    <Text style={[styles.dropdownItemText, { color: theme.colors.textSecondary }]}>
+                      No reason options available
+                    </Text>
+                  </View>
+                )}
               </View>
             )}
           </View>
@@ -734,7 +783,19 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 16,
     fontWeight: "500",
-    marginBottom: 8,
+    marginBottom: 12,
+  },
+  reasonHeaderContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 4,
+  },
+  reasonLoader: {
+    marginLeft: 10,
+  },
+  refreshButton: {
+    marginLeft: 10,
+    padding: 4,
   },
   input: {
     borderWidth: 1,
@@ -794,6 +855,10 @@ const styles = StyleSheet.create({
   },
   dropdownItem: {
     padding: 16,
+  },
+  emptyDropdownItem: {
+    padding: 16,
+    alignItems: "center",
   },
   dropdownItemText: {
     fontSize: 14,
