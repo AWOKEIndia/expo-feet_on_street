@@ -4,6 +4,7 @@ import DateTimePicker from "@react-native-community/datetimepicker";
 import React from "react";
 import { Text, TouchableOpacity, View } from "react-native";
 import { sharedStyles } from "../styles";
+import { months } from "moment";
 
 interface DatesSectionProps {
   formData: {
@@ -102,7 +103,7 @@ const DatesSection: React.FC<DatesSectionProps> = ({
             onChange={(event, date) =>
               handleDateChange("fromDate", event, date)
             }
-            minimumDate={new Date()}
+            minimumDate={new Date(new Date().getTime() - 31 * 24 * 60 * 60 * 1000)} // 31 days ago
           />
         )}
       </View>

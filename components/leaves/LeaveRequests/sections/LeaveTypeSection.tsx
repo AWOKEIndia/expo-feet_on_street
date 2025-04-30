@@ -19,6 +19,7 @@ interface LeaveTypeSectionProps {
   leaveTypesError: boolean;
   leaveTypes: LeaveType[];
   refreshLeaveTypes: () => void;
+
 }
 
 const LeaveTypeSection: React.FC<LeaveTypeSectionProps> = ({
@@ -152,6 +153,7 @@ const LeaveTypeSection: React.FC<LeaveTypeSectionProps> = ({
                     ...formData,
                     leaveType: type.name,
                     leaveTypeName: type.leave_type_name,
+                    isLeaveWithoutPay: type.is_leave_without_pay,
                   });
                   setShowLeaveTypeDropdown(false);
                 }}
