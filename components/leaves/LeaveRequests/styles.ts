@@ -12,7 +12,7 @@ export const sharedStyles = StyleSheet.create({
   },
   title: {
     fontSize: 18,
-    fontWeight: "600",
+    fontWeight: "800",
     marginLeft: 8,
   },
   backButton: {
@@ -27,11 +27,11 @@ export const sharedStyles = StyleSheet.create({
     position: "relative",
   },
   sectionContainer: {
-    marginBottom: 16,
+    marginBottom: 12,
   },
   sectionTitle: {
     fontSize: 16,
-    fontWeight: "500",
+    fontWeight: "800",
     marginBottom: 8,
   },
   label: {
