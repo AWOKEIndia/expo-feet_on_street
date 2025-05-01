@@ -11,7 +11,6 @@ import {
   Pressable,
   Keyboard,
   BackHandler,
-  Alert,
 } from "react-native";
 import { useTheme } from "@/contexts/ThemeContext";
 import { Ionicons } from "@expo/vector-icons";
@@ -20,6 +19,7 @@ import { AppState } from "react-native";
 import { useAuthContext } from "@/contexts/AuthContext";
 import useReasonOptions from "@/hooks/useAttendanceReason";
 import useShift from "@/hooks/useShift";
+import AlertDialog from "../AlertDialog";
 
 interface AttendanceRequestFormProps {
   onSubmit: (data: AttendanceRequestData) => void;
@@ -74,15 +74,44 @@ const AttendanceRequestForm: React.FC<AttendanceRequestFormProps> = ({
   const [appState, setAppState] = useState(AppState.currentState);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Alert dialog states
+  const [alertVisible, setAlertVisible] = useState(false);
+  const [alertTitle, setAlertTitle] = useState("");
+  const [alertMessage, setAlertMessage] = useState("");
+  const [alertConfirmText, setAlertConfirmText] = useState("OK");
+  const [alertShowCancel, setAlertShowCancel] = useState(false);
+  const [alertConfirmAction, setAlertConfirmAction] = useState<() => void>(() => {});
+  const [alertCancelAction, setAlertCancelAction] = useState<() => void>(() => {});
+
+  // Show alert helper function
+  const showAlert = (
+    title: string,
+    message: string,
+    confirmText = "OK",
+    onConfirm = () => setAlertVisible(false),
+    showCancel = false,
+    onCancel = () => setAlertVisible(false)
+  ) => {
+    setAlertTitle(title);
+    setAlertMessage(message);
+    setAlertConfirmText(confirmText);
+    setAlertShowCancel(showCancel);
+    setAlertConfirmAction(() => onConfirm);
+    setAlertCancelAction(() => onCancel);
+    setAlertVisible(true);
+  };
+
   useEffect(() => {
     if (reasonsError) {
       console.error("Error fetching reason options:", reasonsError);
+      showAlert("Error", "Failed to load reason options. Please try again.");
     }
   }, [reasonsError]);
 
   useEffect(() => {
     if (shiftsError) {
       console.error("Error fetching shift types:", shiftsError);
+      showAlert("Error", "Failed to load shift types. Please try again.");
     }
   }, [shiftsError]);
 
@@ -140,22 +169,22 @@ const AttendanceRequestForm: React.FC<AttendanceRequestFormProps> = ({
 
   const validateForm = (): boolean => {
     if (!formData.fromDate) {
-      Alert.alert("Validation Error", "Please select a from date");
+      showAlert("Validation Error", "Please select a from date");
       return false;
     }
 
     if (!formData.toDate) {
-      Alert.alert("Validation Error", "Please select a to date");
+      showAlert("Validation Error", "Please select a to date");
       return false;
     }
 
     if (formData.fromDate > formData.toDate) {
-      Alert.alert("Validation Error", "To date cannot be before from date");
+      showAlert("Validation Error", "To date cannot be before from date");
       return false;
     }
 
     if (!formData.reason) {
-      Alert.alert("Validation Error", "Please select a reason");
+      showAlert("Validation Error", "Please select a reason");
       return false;
     }
 
@@ -224,13 +253,20 @@ const AttendanceRequestForm: React.FC<AttendanceRequestFormProps> = ({
 
       console.log("Attendance request submitted successfully:", result);
 
-      // Call the onSubmit callback with the form data
-      onSubmit(formData);
-
-      Alert.alert("Success", "Attendance request submitted successfully");
+      // Show success alert
+      showAlert(
+        "Success",
+        "Attendance request submitted successfully",
+        "OK",
+        () => {
+          setAlertVisible(false);
+          // Call the onSubmit callback with the form data
+          onSubmit(formData);
+        }
+      );
     } catch (error) {
       console.error("Error submitting attendance request:", error);
-      Alert.alert(
+      showAlert(
         "Error",
         `Failed to submit attendance request: ${error instanceof Error ? error.message : "Unknown error"}`
       );
@@ -273,6 +309,34 @@ const AttendanceRequestForm: React.FC<AttendanceRequestFormProps> = ({
     }
   }, [showShiftDropdown, showReasonDropdown]);
 
+  // Handle back button with confirmation
+  const handleBackPress = () => {
+    if (
+      formData.fromDate ||
+      formData.toDate ||
+      formData.isHalfDay ||
+      formData.includeHolidays ||
+      formData.shift ||
+      formData.reason ||
+      formData.explanation
+    ) {
+      // Show confirmation dialog if form has data
+      showAlert(
+        "Discard Changes",
+        "Are you sure you want to discard your changes?",
+        "Discard",
+        () => {
+          setAlertVisible(false);
+          onCancel();
+        },
+        true,
+        () => setAlertVisible(false)
+      );
+    } else {
+      onCancel();
+    }
+  };
+
   // Show Android date picker
   const showAndroidDatePicker = (field: "fromDate" | "toDate") => {
     // Close any open dropdown first
@@ -302,7 +366,7 @@ const AttendanceRequestForm: React.FC<AttendanceRequestFormProps> = ({
           },
         ]}
       >
-        <TouchableOpacity style={styles.backButton} onPress={onCancel}>
+        <TouchableOpacity style={styles.backButton} onPress={handleBackPress}>
           <Ionicons
             name="chevron-back"
             size={24}
@@ -750,6 +814,19 @@ const AttendanceRequestForm: React.FC<AttendanceRequestFormProps> = ({
           </Text>
         </TouchableOpacity>
       </View>
+
+      {/* Alert Dialog Component */}
+      <AlertDialog
+        visible={alertVisible}
+        title={alertTitle}
+        message={alertMessage}
+        confirmText={alertConfirmText}
+        cancelText="Cancel"
+        showCancel={alertShowCancel}
+        onConfirm={alertConfirmAction}
+        onCancel={alertCancelAction}
+        theme={theme}
+      />
     </KeyboardAvoidingView>
   );
 };
