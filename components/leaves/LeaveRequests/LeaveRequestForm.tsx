@@ -1,5 +1,11 @@
+import AlertDialog from "@/components/AlertDialog";
+import { useAuthContext } from "@/contexts/AuthContext";
+import { useTheme } from "@/contexts/ThemeContext";
+import useLeaveApprovers from "@/hooks/useLeaveApprover";
+import useLeaveTypes from "@/hooks/useLeaveTypes";
+import React, { useEffect, useMemo, useState } from "react";
 import {
-  Alert,
+  AppState,
   BackHandler,
   Keyboard,
   KeyboardAvoidingView,
@@ -7,10 +13,6 @@ import {
   Pressable,
   ScrollView,
 } from "react-native";
-import { LeaveRequestData, LeaveRequestFormProps, Attachment } from "./types";
-import React, { useEffect, useMemo, useState } from "react";
-
-import { AppState } from "react-native";
 import ApproverSection from "./sections/ApproverSection";
 import AttachmentsSection from "./sections/AttachmentSection";
 import BalanceInfo from "./sections/BalanceInfo";
@@ -20,17 +22,26 @@ import FormHeader from "./sections/FormHeader";
 import LeaveTypeSection from "./sections/LeaveTypeSection";
 import ReasonSection from "./sections/ReasonSection";
 import { sharedStyles } from "./styles";
-import { useAuthContext } from "@/contexts/AuthContext";
-import useLeaveApprovers from "@/hooks/useLeaveApprover";
-import useLeaveTypes from "@/hooks/useLeaveTypes";
-import { useTheme } from "@/contexts/ThemeContext";
+import { Attachment, LeaveRequestData, LeaveRequestFormProps } from "./types";
 
 const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
   onSubmit,
-  onCancel,
+  onCancel
 }) => {
   const { theme, isDark } = useTheme();
   const { accessToken, employeeProfile } = useAuthContext();
+
+  // State for AlertDialog
+  const [alertDialogVisible, setAlertDialogVisible] = useState(false);
+  const [alertDialogConfig, setAlertDialogConfig] = useState({
+    title: "",
+    message: "",
+    confirmText: "OK",
+    cancelText: "Cancel",
+    showCancel: false,
+    onConfirm: () => {},
+    onCancel: () => {},
+  });
 
   const [formData, setFormData] = useState<LeaveRequestData>({
     leaveType: "",
@@ -192,29 +203,68 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
     setFormData({ ...formData, attachments });
   };
 
+  // Show alert dialog with customizable content
+  const showAlertDialog = (config : any) => {
+    setAlertDialogConfig({
+      ...alertDialogConfig,
+      ...config,
+    });
+    setAlertDialogVisible(true);
+  };
+
+  // Hide alert dialog
+  const hideAlertDialog = () => {
+    setAlertDialogVisible(false);
+  };
+
   const validateForm = (): boolean => {
     if (!formData.leaveType) {
-      Alert.alert("Validation Error", "Please select a leave type");
+      showAlertDialog({
+        title: "Validation Error",
+        message: "Please select a leave type",
+        showCancel: false,
+        onConfirm: hideAlertDialog,
+      });
       return false;
     }
 
     if (!formData.fromDate) {
-      Alert.alert("Validation Error", "Please select a from date");
+      showAlertDialog({
+        title: "Validation Error",
+        message: "Please select a from date",
+        showCancel: false,
+        onConfirm: hideAlertDialog,
+      });
       return false;
     }
 
     if (!formData.toDate) {
-      Alert.alert("Validation Error", "Please select a to date");
+      showAlertDialog({
+        title: "Validation Error",
+        message: "Please select a to date",
+        showCancel: false,
+        onConfirm: hideAlertDialog,
+      });
       return false;
     }
 
     if (formData.fromDate > formData.toDate) {
-      Alert.alert("Validation Error", "To date cannot be before from date");
+      showAlertDialog({
+        title: "Validation Error",
+        message: "To date cannot be before from date",
+        showCancel: false,
+        onConfirm: hideAlertDialog,
+      });
       return false;
     }
 
     if (!formData.leaveApprover) {
-      Alert.alert("Validation Error", "Please select a leave approver");
+      showAlertDialog({
+        title: "Validation Error",
+        message: "Please select a leave approver",
+        showCancel: false,
+        onConfirm: hideAlertDialog,
+      });
       return false;
     }
 
@@ -226,19 +276,37 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
 
     // Only check balance if it's not a Leave Without Pay type
     if (!isLeaveWithoutPay && !hasEnoughBalance) {
-      Alert.alert(
-        "Insufficient Leave Balance",
-        "You don't have enough leave balance for this request."
-      );
+      showAlertDialog({
+        title: "Insufficient Leave Balance",
+        message: "You don't have enough leave balance for this request.",
+        showCancel: false,
+        onConfirm: hideAlertDialog,
+      });
       return false;
     }
 
     return true;
   };
 
-  const handleSubmitWithDirectUpload = async () => {
+  const confirmSubmit = () => {
     if (!validateForm()) return;
 
+    // Show confirmation dialog before submission
+    showAlertDialog({
+      title: "Confirm Submission",
+      message: "Are you sure you want to submit this leave request?",
+      confirmText: "Submit",
+      cancelText: "Cancel",
+      showCancel: true,
+      onConfirm: () => {
+        hideAlertDialog();
+        handleSubmitWithDirectUpload();
+      },
+      onCancel: hideAlertDialog,
+    });
+  };
+
+  const handleSubmitWithDirectUpload = async () => {
     setIsSubmitting(true);
 
     try {
@@ -332,28 +400,51 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
         }
       }
 
-      if (uploadErrors.length > 0) {
-        Alert.alert(
-          "Partial Success",
-          `Leave application submitted successfully, but ${uploadErrors.length} attachment(s) could not be uploaded.`
-        );
-      } else if (formData.attachments.length > 0) {
-        console.log("All attachments uploaded successfully");
-      }
-
       onSubmit(formData);
-      Alert.alert("Success", "Leave application submitted successfully");
+
+      if (uploadErrors.length > 0) {
+        showAlertDialog({
+          title: "Partial Success",
+          message: `Leave application submitted successfully, but ${uploadErrors.length} attachment(s) could not be uploaded.`,
+          showCancel: false,
+          onConfirm: hideAlertDialog,
+        });
+      } else {
+        showAlertDialog({
+          title: "Success",
+          message: "Leave application submitted successfully",
+          showCancel: false,
+          onConfirm: hideAlertDialog,
+        });
+      }
     } catch (error) {
       console.error("Error in submission process:", error);
-      Alert.alert(
-        "Error",
-        error instanceof Error && error.message
+      showAlertDialog({
+        title: "Error",
+        message: error instanceof Error && error.message
           ? error.message
-          : "Failed to submit leave application. Please try again."
-      );
+          : "Failed to submit leave application. Please try again.",
+        showCancel: false,
+        onConfirm: hideAlertDialog,
+      });
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handleCancelRequest = () => {
+    showAlertDialog({
+      title: "Cancel Request",
+      message: "Are you sure you want to cancel this leave request? All entered data will be lost.",
+      confirmText: "Yes, Cancel",
+      cancelText: "No, Keep Editing",
+      showCancel: true,
+      onConfirm: () => {
+        hideAlertDialog();
+        onCancel();
+      },
+      onCancel: hideAlertDialog,
+    });
   };
 
   return (
@@ -364,7 +455,21 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
       ]}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
-      <FormHeader onCancel={onCancel} />
+      {/* AlertDialog Component */}
+      <AlertDialog
+        visible={alertDialogVisible}
+        title={alertDialogConfig.title}
+        message={alertDialogConfig.message}
+        confirmText={alertDialogConfig.confirmText}
+        cancelText={alertDialogConfig.cancelText}
+        showCancel={alertDialogConfig.showCancel}
+        onConfirm={alertDialogConfig.onConfirm}
+        onCancel={alertDialogConfig.onCancel}
+        onDismiss={hideAlertDialog}
+        theme={theme}
+      />
+
+      <FormHeader onCancel={handleCancelRequest} />
 
       <Pressable
         style={{ flex: 1 }}
@@ -436,7 +541,7 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
 
       <FormFooter
         hasEnoughBalance={hasEnoughBalance}
-        handleSubmit={handleSubmitWithDirectUpload}
+        handleSubmit={confirmSubmit} // Updated to use confirmation dialog
         isSubmitting={isSubmitting}
         isLeaveWithoutPay={
           !!leaveTypes.find((type) => type.name === formData.leaveType)?.is_lwp
