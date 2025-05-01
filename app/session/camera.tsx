@@ -37,6 +37,7 @@ type CameraParams = {
   returnToCreate?: string;
   index?: string;
   type?: string;
+  confirmBeforeReturn?: string;
 };
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
@@ -47,6 +48,7 @@ export default function CameraScreen() {
   const returnToCreate = params.returnToCreate === "true";
   const imageType = params.type as "session" | "participant" | undefined;
   const imageIndex = params.index ? parseInt(params.index) : -1;
+  const confirmBeforeReturn = params.confirmBeforeReturn === "true";
 
   const [facing, setFacing] = useState<CameraType>("back");
   const cameraRef = useRef<CameraView>(null);
@@ -220,8 +222,7 @@ export default function CameraScreen() {
   }, []);
 
   const returnToCreateForm = useCallback((photoUri: string) => {
-    // Use the navigation object from the react-navigation to return to the previous screen
-    // with the captured photo URI as a parameter
+    // Use the navigation object to return to the previous screen
     if (returnToCreate && navigation.canGoBack()) {
       // Return to the create form with the photo URI
       navigation.goBack();
@@ -305,11 +306,23 @@ export default function CameraScreen() {
       // Delete original photo
       await FileSystem.deleteAsync(photo.uri, { idempotent: true });
 
-      // If we need to return to the create form
-      if (returnToCreate) {
+      // Determine where to go next
+      if (returnToCreate && !confirmBeforeReturn) {
+        // Direct return to create form without confirmation
         returnToCreateForm(photoAsset.uri);
+      } else if (returnToCreate && confirmBeforeReturn) {
+        // Go to photo review with "fromCreate" flag
+        router.push({
+          pathname: `/session/photo-review`,
+          params: {
+            path: encodeURIComponent(photoAsset.uri),
+            fromCreate: "true",
+            imageType: imageType,
+            imageIndex: imageIndex.toString(),
+          },
+        });
       } else {
-        // Navigate to photo review as before
+        // Normal photo review
         router.push({
           pathname: `/session/photo-review`,
           params: {
@@ -327,7 +340,7 @@ export default function CameraScreen() {
     } finally {
       setIsCapturing(false);
     }
-  }, [isCapturing, location, address, returnToCreate, returnToCreateForm]);
+  }, [isCapturing, location, address, returnToCreate, returnToCreateForm, confirmBeforeReturn, imageType, imageIndex]);
 
   const navigateToGallery = useCallback(() => {
     router.push("/gallery");

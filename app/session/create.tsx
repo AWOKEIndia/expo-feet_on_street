@@ -2,7 +2,7 @@ import { useTheme } from "@/contexts/ThemeContext";
 import { Ionicons } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import * as MediaLibrary from "expo-media-library";
-import { useNavigation } from "expo-router";
+import { router, useNavigation } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
   Alert,
@@ -16,6 +16,7 @@ import {
   TextInput,
   TouchableOpacity,
   View,
+  ActivityIndicator,
 } from "react-native";
 import { useAuth } from "@/hooks/useAuth";
 import * as ImagePicker from 'expo-image-picker';
@@ -30,6 +31,7 @@ const CreateSessionReport = () => {
   const [feetOnStreetAlbum, setFeetOnStreetAlbum] =
     useState<MediaLibrary.Album | null>(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [savingInProgress, setSavingInProgress] = useState(false);
 
   const [sessionImages, setSessionImages] = useState<
     Array<{ uri: string } | null>
@@ -62,7 +64,7 @@ const CreateSessionReport = () => {
         try {
           const albums = await MediaLibrary.getAlbumsAsync();
           const feetOnStreetAlb = albums.find(
-            (album) => album.title === "Feet On Street Photos"
+            (album) => album.title === "Feet On Street"
           );
 
           if (feetOnStreetAlb) {
@@ -135,6 +137,22 @@ const CreateSessionReport = () => {
     }
   };
 
+  const browseGalleryForAddingPhoto = async (
+    type: "session" | "participant",
+    index: number
+  ) => {
+    // Navigate to the gallery with selection mode and session image info
+    router.push({
+      pathname: "/gallery" as any,
+      params: {
+        select: "true",
+        returnToCreate: "true",
+        imageType: type,
+        imageIndex: index.toString(),
+      },
+    });
+  };
+
   const openMediaPicker = async (
     type: "session" | "participant",
     index: number
@@ -187,6 +205,10 @@ const CreateSessionReport = () => {
         onPress: () => openMediaPicker("session", index),
       },
       {
+        text: "Choose from Feet On Street Photos",
+        onPress: () => browseGalleryForAddingPhoto("session", index),
+      },
+      {
         text: "Cancel",
         style: "cancel",
       },
@@ -204,6 +226,10 @@ const CreateSessionReport = () => {
         onPress: () => openMediaPicker("participant", index),
       },
       {
+        text: "Choose from Feet On Street Photos",
+        onPress: () => browseGalleryForAddingPhoto("participant", index),
+      },
+      {
         text: "Cancel",
         style: "cancel",
       },
@@ -215,34 +241,41 @@ const CreateSessionReport = () => {
       returnToCreate: "true",
       type: type,
       index: index.toString(),
+      confirmBeforeReturn: "true", // Enable review before accepting
     });
   };
 
-  const submitReport = () => {
-    if (!formData.date) {
-      Alert.alert(
-        "Missing Information",
-        "Please enter the training session date"
-      );
-      return;
+  const validateRequiredFields = () => {
+    interface FormField {
+      field: keyof typeof formData;
+      message: string;
     }
 
-    if (!formData.participant_count) {
-      Alert.alert("Missing Information", "Please enter the participant count");
-      return;
+    const requiredFields: FormField[] = [
+      { field: "date", message: "Please enter the training session date" },
+      { field: "participant_count", message: "Please enter the participant count" },
+      { field: "employee", message: "Please select an employee" },
+      { field: "village", message: "Please enter the village name" },
+      { field: "block", message: "Please select a block" },
+    ];
+
+    for (const { field, message } of requiredFields) {
+      if (!formData[field]) {
+        Alert.alert("Missing Information", message);
+        return false;
+      }
     }
 
-    if (!formData.employee) {
-      Alert.alert("Missing Information", "Please select an employee");
-      return;
-    }
+    return true;
+  };
 
+  const validateRequiredImages = () => {
     if (!sessionImages[0] || !sessionImages[1]) {
       Alert.alert(
         "Missing Images",
         "Please upload at least the first two training photos"
       );
-      return;
+      return false;
     }
 
     if (!participantImages[0]) {
@@ -250,34 +283,84 @@ const CreateSessionReport = () => {
         "Missing Images",
         "Please upload at least one participant list page"
       );
-      return;
+      return false;
     }
 
-    if (!formData.village) {
-      Alert.alert("Missing Information", "Please enter the village name");
-      return;
+    return true;
+  };
+
+  const saveAsDraft = async () => {
+    if (!validateRequiredFields()) return;
+
+    try {
+      setSavingInProgress(true);
+
+      // Prepare data for submission
+      const draftData = {
+        ...formData,
+        status: "Draft",
+        date: formData.date.toISOString().split("T")[0],
+        session_images: sessionImages.filter(Boolean).map(img => img?.uri),
+        participant_images: participantImages.filter(Boolean).map(img => img?.uri),
+      };
+
+      console.log("Saving draft:", draftData);
+
+      // Here you would implement the API call to save the draft
+      // For now, we'll just simulate a successful save
+      setTimeout(() => {
+        setSavingInProgress(false);
+        Alert.alert("Success", "Session report saved as draft");
+        // Navigate to session listing or dashboard
+        router.push("/");
+      }, 1000);
+    } catch (error) {
+      console.error("Error saving draft:", error);
+      setSavingInProgress(false);
+      Alert.alert("Error", "Failed to save draft. Please try again.");
     }
+  };
 
-    if (!formData.block) {
-      Alert.alert("Missing Information", "Please select a block");
-      return;
+  const submitReport = () => {
+    if (!validateRequiredFields()) return;
+    if (!validateRequiredImages()) return;
+
+    try {
+      setSavingInProgress(true);
+
+      // Prepare data for submission
+      const submissionData = {
+        ...formData,
+        status: "Submitted",
+        date: formData.date.toISOString().split("T")[0],
+        session_image_1: sessionImages[0]?.uri,
+        session_image_2: sessionImages[1]?.uri,
+        session_image_3: sessionImages[2]?.uri,
+        session_image_4: sessionImages[3]?.uri,
+        participant_list_page_1: participantImages[0]?.uri,
+        participant_list_page_2: participantImages[1]?.uri,
+        participant_list_page_3: participantImages[2]?.uri,
+      };
+
+      console.log("Submitting data:", submissionData);
+
+      // Here you would implement the API call to submit the report
+      // For now, we'll just simulate a successful submission
+      setTimeout(() => {
+        setSavingInProgress(false);
+        Alert.alert("Success", "Session report submitted successfully");
+
+        // Navigate to session details or listing
+        router.push({
+          pathname: "/session/[id]" as any,
+          params: { id: "1" },
+        });
+      }, 1000);
+    } catch (error) {
+      console.error("Error submitting report:", error);
+      setSavingInProgress(false);
+      Alert.alert("Error", "Failed to submit report. Please try again.");
     }
-
-    const submissionData = {
-      ...formData,
-      date: formData.date.toISOString().split("T")[0],
-      session_image_1: sessionImages[0]?.uri,
-      session_image_2: sessionImages[1]?.uri,
-      session_image_3: sessionImages[2]?.uri,
-      session_image_4: sessionImages[3]?.uri,
-      participant_list_page_1: participantImages[0]?.uri,
-      participant_list_page_2: participantImages[1]?.uri,
-      participant_list_page_3: participantImages[2]?.uri,
-    };
-
-    console.log("Submitting data:", submissionData);
-
-    Alert.alert("Success", "Session report submitted successfully");
   };
 
   return (
@@ -782,25 +865,58 @@ const CreateSessionReport = () => {
           </View>
         </View>
 
-        <TouchableOpacity
-          style={[
-            styles.submitButton,
-            {
-              backgroundColor: theme.brandColors.primary,
-              ...theme.shadows.md,
-            },
-          ]}
-          onPress={submitReport}
-        >
-          <Text
+        <View style={styles.buttonContainer}>
+          <TouchableOpacity
             style={[
-              styles.submitButtonText,
-              { color: theme.colors.textInverted },
+              styles.saveAsDraftButton,
+              {
+                backgroundColor: theme.colors.surfacePrimary,
+                borderColor: theme.brandColors.primary,
+                ...theme.shadows.sm,
+              },
             ]}
+            onPress={saveAsDraft}
+            disabled={savingInProgress}
           >
-            Submit Session Report
-          </Text>
-        </TouchableOpacity>
+            {savingInProgress ? (
+              <ActivityIndicator size="small" color={theme.brandColors.primary} />
+            ) : (
+              <Text
+                style={[
+                  styles.saveAsDraftText,
+                  { color: theme.brandColors.primary },
+                ]}
+              >
+                Save as Draft
+              </Text>
+            )}
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[
+              styles.submitButton,
+              {
+                backgroundColor: theme.brandColors.primary,
+                ...theme.shadows.md,
+              },
+            ]}
+            onPress={submitReport}
+            disabled={savingInProgress}
+          >
+            {savingInProgress ? (
+              <ActivityIndicator size="small" color="white" />
+            ) : (
+              <Text
+                style={[
+                  styles.submitButtonText,
+                  { color: theme.colors.textInverted },
+                ]}
+              >
+                Submit Report
+              </Text>
+            )}
+          </TouchableOpacity>
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -937,12 +1053,30 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     overflow: "hidden",
   },
+  buttonContainer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: 20,
+    marginBottom: 20,
+  },
+  saveAsDraftButton: {
+    flex: 1,
+    borderRadius: 8,
+    borderWidth: 1,
+    paddingVertical: 16,
+    alignItems: "center",
+    marginRight: 8,
+  },
+  saveAsDraftText: {
+    fontSize: 16,
+    fontWeight: "600",
+  },
   submitButton: {
+    flex: 1,
     borderRadius: 8,
     paddingVertical: 16,
     alignItems: "center",
-    marginTop: 10,
-    marginBottom: 20,
+    marginLeft: 8,
   },
   submitButtonText: {
     fontSize: 16,

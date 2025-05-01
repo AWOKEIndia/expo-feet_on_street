@@ -1,7 +1,7 @@
 import { useTheme } from "@/contexts/ThemeContext";
 import { Ionicons } from "@expo/vector-icons";
 import * as MediaLibrary from "expo-media-library";
-import { router, useLocalSearchParams } from "expo-router";
+import { router, useLocalSearchParams, useNavigation } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -16,12 +16,19 @@ import {
 } from "react-native";
 
 export default function PhotoReviewScreen() {
+  const navigation = useNavigation();
   const { theme } = useTheme();
-  const { path } = useLocalSearchParams<{ path: string }>();
+  const { path, fromCreate, imageType, imageIndex } = useLocalSearchParams<{
+    path: string;
+    fromCreate?: string;
+    imageType?: string;
+    imageIndex?: string;
+  }>();
 
   const [photoAssets, setPhotoAssets] = useState<MediaLibrary.Asset[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
+  const isFromCreateForm = fromCreate === "true";
 
   useEffect(() => {
     const loadPhotos = async () => {
@@ -67,6 +74,23 @@ export default function PhotoReviewScreen() {
   const handleClose = () => router.back();
 
   const handleGoToGallery = () => router.push("/gallery");
+
+  const handleAccept = () => {
+    if (isFromCreateForm && currentIndex >= 0 && currentIndex < photoAssets.length) {
+      // Return to the create form with the photo URI
+      if (navigation.canGoBack()) {
+        navigation.goBack();
+
+        // Pass the result back to the previous screen
+        // @ts-ignore - TypeScript doesn't know about the setParams method
+        navigation.getParent()?.setParams({
+          capturedPhotoUri: photoAssets[currentIndex].uri,
+          imageType: imageType || "session",
+          imageIndex: imageIndex || "0"
+        });
+      }
+    }
+  };
 
   const handleShare = async () => {
     try {
@@ -158,6 +182,14 @@ export default function PhotoReviewScreen() {
             <Ionicons name="close" size={24} color="white" />
           </View>
         </TouchableOpacity>
+
+        {isFromCreateForm && (
+          <View style={styles.headerPrompt}>
+            <Text style={styles.promptText}>
+              Use this photo for your session?
+            </Text>
+          </View>
+        )}
       </View>
 
       <View style={styles.imageContainer}>
@@ -218,46 +250,78 @@ export default function PhotoReviewScreen() {
 
       {/* Action buttons */}
       <View style={styles.actionContainer}>
-        <TouchableOpacity
-          style={[
-            styles.actionButton,
-            { backgroundColor: theme.colors.buttonSecondary },
-          ]}
-          onPress={handleGoToGallery}
-        >
-          <Ionicons name="grid" size={22} color={theme.colors.textPrimary} />
-          <Text style={[styles.actionText, { color: theme.colors.textPrimary }]}>
-            Gallery
-          </Text>
-        </TouchableOpacity>
+        {isFromCreateForm ? (
+          <>
+            <TouchableOpacity
+              style={[
+                styles.actionButton,
+                { backgroundColor: theme.colors.buttonError },
+              ]}
+              onPress={handleClose}
+            >
+              <Ionicons name="close-circle-outline" size={22} color="white" />
+              <Text style={[styles.actionText, { color: "white" }]}>
+                Reject
+              </Text>
+            </TouchableOpacity>
 
-        <TouchableOpacity
-          style={[
-            styles.actionButton,
-            { backgroundColor: theme.colors.buttonSecondary },
-          ]}
-          onPress={handleShare}
-        >
-          <Ionicons
-            name="share-outline"
-            size={22}
-            color={theme.colors.textPrimary}
-          />
-          <Text style={[styles.actionText, { color: theme.colors.textPrimary }]}>
-            Share
-          </Text>
-        </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.actionButton,
+                { backgroundColor: theme.colors.buttonSuccess || "#4CAF50" },
+              ]}
+              onPress={handleAccept}
+            >
+              <Ionicons name="checkmark-circle-outline" size={22} color="white" />
+              <Text style={[styles.actionText, { color: "white" }]}>
+                Accept
+              </Text>
+            </TouchableOpacity>
+          </>
+        ) : (
+          <>
+            <TouchableOpacity
+              style={[
+                styles.actionButton,
+                { backgroundColor: theme.colors.buttonSecondary },
+              ]}
+              onPress={handleGoToGallery}
+            >
+              <Ionicons name="grid" size={22} color={theme.colors.textPrimary} />
+              <Text style={[styles.actionText, { color: theme.colors.textPrimary }]}>
+                Gallery
+              </Text>
+            </TouchableOpacity>
 
-        <TouchableOpacity
-          style={[
-            styles.actionButton,
-            { backgroundColor: theme.colors.buttonError },
-          ]}
-          onPress={handleDelete}
-        >
-          <Ionicons name="trash-outline" size={22} color="white" />
-          <Text style={[styles.actionText, { color: "white" }]}>Delete</Text>
-        </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.actionButton,
+                { backgroundColor: theme.colors.buttonSecondary },
+              ]}
+              onPress={handleShare}
+            >
+              <Ionicons
+                name="share-outline"
+                size={22}
+                color={theme.colors.textPrimary}
+              />
+              <Text style={[styles.actionText, { color: theme.colors.textPrimary }]}>
+                Share
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.actionButton,
+                { backgroundColor: theme.colors.buttonError },
+              ]}
+              onPress={handleDelete}
+            >
+              <Ionicons name="trash-outline" size={22} color="white" />
+              <Text style={[styles.actionText, { color: "white" }]}>Delete</Text>
+            </TouchableOpacity>
+          </>
+        )}
       </View>
     </SafeAreaView>
   );
@@ -274,6 +338,8 @@ const styles = StyleSheet.create({
     right: 0,
     padding: 16,
     zIndex: 10,
+    flexDirection: "row",
+    alignItems: "center",
   },
   closeButton: {
     alignSelf: "flex-start",
@@ -285,6 +351,20 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0, 0, 0, 0.7)",
     justifyContent: "center",
     alignItems: "center",
+  },
+  headerPrompt: {
+    flex: 1,
+    alignItems: "center",
+    marginRight: 40, // Balance with close button width
+  },
+  promptText: {
+    color: "white",
+    fontSize: 16,
+    fontWeight: "bold",
+    backgroundColor: "rgba(0, 0, 0, 0.7)",
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 16,
   },
   imageContainer: {
     flex: 1,
