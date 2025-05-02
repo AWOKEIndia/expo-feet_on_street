@@ -1,25 +1,24 @@
-import React, { useState, useEffect } from "react";
+import ExpenseClaimForm from "@/components/expenseClaim/ExpenseClaimForm";
+import { useTheme } from "@/contexts/ThemeContext";
+import { Ionicons } from "@expo/vector-icons";
+import { StatusBar } from "expo-status-bar";
+import React, { useState } from "react";
 import {
+  ActivityIndicator,
+  Modal,
   SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
-  View,
-  ActivityIndicator,
-  TextInput,
-  Platform,
+  View
 } from "react-native";
-import { StatusBar } from "expo-status-bar";
-import { Ionicons } from "@expo/vector-icons";
-import { router } from "expo-router";
-import { useTheme } from "@/contexts/ThemeContext";
-import { useAuthContext } from "@/contexts/AuthContext";
 
 export default function ExpenseClaimScreen() {
   const { theme, isDark } = useTheme();
-  const { accessToken } = useAuthContext();
   const [isLoading, setIsLoading] = useState(true);
+  const [showFormModal, setShowFormModal] = useState(false);
+
   type Expense = {
     id: string;
     date: string;
@@ -27,6 +26,7 @@ export default function ExpenseClaimScreen() {
     amount: number;
     status: string;
   };
+
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [expenseSummary, setExpenseSummary] = useState({
     total: 0,
@@ -36,48 +36,60 @@ export default function ExpenseClaimScreen() {
   });
   const [advanceBalance, setAdvanceBalance] = useState(0);
 
-  useEffect(() => {
-    // Simulate fetch expenses data
-    const fetchExpenses = async () => {
-      setIsLoading(true);
-      try {
-        // Replace with actual API call to fetch expenses
-        // Example:
-        // const response = await fetch(
-        //   `${process.env.EXPO_PUBLIC_BASE_URL}/api/resource/Expense Claim`,
-        //   {
-        //     headers: {
-        //       Authorization: `Bearer ${accessToken}`,
-        //       "Content-Type": "application/json",
-        //     },
-        //   }
-        // );
-        // const data = await response.json();
+  // Simulate loading data
+  React.useEffect(() => {
+    const timer = setTimeout(() => {
+      setExpenses([
+        {
+          id: "EXP-2023-001",
+          date: "15/06/2023",
+          purpose: "Client meeting travel expenses",
+          amount: 1250,
+          status: "Approved"
+        },
+        {
+          id: "EXP-2023-002",
+          date: "22/06/2023",
+          purpose: "Team lunch",
+          amount: 3500,
+          status: "Pending"
+        },
+        {
+          id: "EXP-2023-003",
+          date: "05/07/2023",
+          purpose: "Office supplies",
+          amount: 750,
+          status: "Rejected"
+        }
+      ]);
 
-        // Simulated data
-        setTimeout(() => {
-          setExpenses([
+      setExpenseSummary({
+        total: 5500,
+        pending: 3500,
+        approved: 1250,
+        rejected: 750,
+      });
 
-          ]);
+      setAdvanceBalance(0);
+      setIsLoading(false);
+    }, 1000);
 
-          setExpenseSummary({
-            total: 5500,
-            pending: 3500,
-            approved: 1250,
-            rejected: 750,
-          });
+    return () => clearTimeout(timer);
+  }, []);
 
-          setAdvanceBalance(0);
-          setIsLoading(false);
-        }, 1000);
-      } catch (error) {
-        console.error("Error fetching expenses:", error);
-        setIsLoading(false);
-      }
-    };
+  const handleFormSubmit = (data: any) => {
+    // Here you would typically send the data to your API
+    console.log("Form submitted with data:", data);
 
-    fetchExpenses();
-  }, [accessToken]);
+    // For demo purposes, we'll just close the modal
+    setShowFormModal(false);
+
+    // Show a success message or refresh the expense list
+  };
+
+  const handleFormCancel = () => {
+    setShowFormModal(false);
+  };
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -105,7 +117,7 @@ export default function ExpenseClaimScreen() {
     }
   };
 
-  const renderExpenseItem = (expense: any) => (
+  const renderExpenseItem = (expense: Expense) => (
     <TouchableOpacity
       key={expense.id}
       style={[
@@ -115,7 +127,6 @@ export default function ExpenseClaimScreen() {
           borderColor: theme.colors.border,
         },
       ]}
-      onPress={() => router.push(`/expense/${expense.id}`)}
     >
       <View style={styles.expenseHeader}>
         <View style={styles.expenseIdContainer}>
@@ -246,7 +257,7 @@ export default function ExpenseClaimScreen() {
               styles.claimButton,
               { backgroundColor: theme.colors.buttonPrimary },
             ]}
-            onPress={() => router.push("/expense/new")}
+            onPress={() => setShowFormModal(true)}
           >
             <Text style={[styles.claimButtonText, { color: "#FFFFFF" }]}>
               Claim an Expense
@@ -260,7 +271,7 @@ export default function ExpenseClaimScreen() {
               Recent Expenses
             </Text>
             {expenses.length > 0 && (
-              <TouchableOpacity onPress={() => router.push("/expense/all")}>
+              <TouchableOpacity>
                 <Text style={[styles.viewAllLink, { color: theme.colors.buttonPrimary }]}>
                   View All
                 </Text>
@@ -308,7 +319,7 @@ export default function ExpenseClaimScreen() {
             <Text style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}>
               Employee Advance Balance
             </Text>
-            <TouchableOpacity onPress={() => router.push("/advance/all")}>
+            <TouchableOpacity>
               <Text style={[styles.viewAllLink, { color: theme.colors.buttonPrimary }]}>
                 View List
               </Text>
@@ -353,7 +364,6 @@ export default function ExpenseClaimScreen() {
                   borderColor: theme.colors.border,
                 },
               ]}
-              onPress={() => router.push('/advance/new')}
             >
               <Text
                 style={[
@@ -367,6 +377,19 @@ export default function ExpenseClaimScreen() {
           </View>
         </View>
       </ScrollView>
+
+      {/* Modal for Expense Claim Form */}
+      <Modal
+        visible={showFormModal}
+        animationType="slide"
+        transparent={false}
+        onRequestClose={() => setShowFormModal(false)}
+      >
+        <ExpenseClaimForm
+          onSubmit={handleFormSubmit}
+          onCancel={handleFormCancel}
+        />
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -374,43 +397,6 @@ export default function ExpenseClaimScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-  },
-  header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingHorizontal: 16,
-    paddingTop: Platform.OS === 'ios' ? 12 : 40,
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: "rgba(0,0,0,0.1)",
-  },
-  headerTitle: {
-    fontSize: 24,
-    fontWeight: "bold",
-  },
-  headerIcons: {
-    flexDirection: "row",
-    alignItems: "center",
-    width: 80,
-    justifyContent: "flex-end",
-  },
-  iconButton: {
-    padding: 8,
-    borderRadius: 20,
-    marginRight: 8,
-  },
-  avatarContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  avatarText: {
-    color: "#FFFFFF",
-    fontWeight: "bold",
-    fontSize: 16,
   },
   scrollContainer: {
     flex: 1,
@@ -600,19 +586,5 @@ const styles = StyleSheet.create({
   requestAdvanceText: {
     fontSize: 14,
     fontWeight: "500",
-  },
-  tabBar: {
-    flexDirection: "row",
-    borderTopWidth: 1,
-    height: 64,
-  },
-  tabItem: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  tabLabel: {
-    fontSize: 12,
-    marginTop: 4,
   },
 });
