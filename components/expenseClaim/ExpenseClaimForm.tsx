@@ -1,3 +1,4 @@
+import { styles } from "@/components/expenseClaim/styles";
 import { useAuthContext } from "@/contexts/AuthContext";
 import { useTheme } from "@/contexts/ThemeContext";
 import { Ionicons } from "@expo/vector-icons";
@@ -12,13 +13,13 @@ import {
   Platform,
   Pressable,
   ScrollView,
-  StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
 import AlertDialog from "../AlertDialog";
+import useExpenseClaimTypes from "@/hooks/useExpenseClaimTypes";
 
 interface ExpenseClaimFormProps {
   onSubmit: (data: ExpenseClaimData) => void;
@@ -41,9 +42,10 @@ const ExpenseClaimForm: React.FC<ExpenseClaimFormProps> = ({
 }) => {
   const { theme, isDark } = useTheme();
   const { accessToken, employeeProfile } = useAuthContext();
+  const { data: expenseClaimTypes, loading: loadingExpenseTypes, error: expenseTypesError } = useExpenseClaimTypes(accessToken as string);
 
   const [formData, setFormData] = useState<ExpenseClaimData>({
-    date: new Date(), // Default to today
+    date: new Date(),
     expenseType: "",
     description: "",
     amount: "",
@@ -59,21 +61,11 @@ const ExpenseClaimForm: React.FC<ExpenseClaimFormProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [expenseItems, setExpenseItems] = useState<ExpenseClaimData[]>([]);
 
-  const expenseTypes = [
-    "Travel",
-    "Meals",
-    "Accommodation",
-    "Office Supplies",
-    "Client Entertainment",
-    "Training",
-    "Others"
-  ];
-
   const projects = [
     "Corporate Website Redesign",
     "Mobile App Development",
     "Marketing Campaign Q2",
-    "Product Launch Event"
+    "Product Launch Event",
   ];
 
   // Alert dialog states
@@ -82,8 +74,22 @@ const ExpenseClaimForm: React.FC<ExpenseClaimFormProps> = ({
   const [alertMessage, setAlertMessage] = useState("");
   const [alertConfirmText, setAlertConfirmText] = useState("OK");
   const [alertShowCancel, setAlertShowCancel] = useState(false);
-  const [alertConfirmAction, setAlertConfirmAction] = useState<() => void>(() => {});
-  const [alertCancelAction, setAlertCancelAction] = useState<() => void>(() => {});
+  const [alertConfirmAction, setAlertConfirmAction] = useState<() => void>(
+    () => {}
+  );
+  const [alertCancelAction, setAlertCancelAction] = useState<() => void>(
+    () => {}
+  );
+
+  // Handle error from expense claim types
+  useEffect(() => {
+    if (expenseTypesError) {
+      showAlert(
+        "Error",
+        `Failed to load expense claim types: ${expenseTypesError.message}`
+      );
+    }
+  }, [expenseTypesError]);
 
   const showAlert = (
     title: string,
@@ -149,8 +155,8 @@ const ExpenseClaimForm: React.FC<ExpenseClaimFormProps> = ({
 
   const formatDate = (date: Date | null): string => {
     if (!date) return "";
-    const day = String(date.getDate()).padStart(2, '0');
-    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, "0");
+    const month = String(date.getMonth() + 1).padStart(2, "0");
     const year = date.getFullYear();
     return `${day}/${month}/${year}`;
   };
@@ -195,7 +201,7 @@ const ExpenseClaimForm: React.FC<ExpenseClaimFormProps> = ({
       description: "",
       amount: "",
       sanctionedAmount: "",
-      project: ""
+      project: "",
     });
 
     showAlert("Success", "Expense item added successfully");
@@ -210,9 +216,8 @@ const ExpenseClaimForm: React.FC<ExpenseClaimFormProps> = ({
     setIsSubmitting(true);
 
     try {
-      const itemsToSubmit = expenseItems.length > 0
-        ? expenseItems
-        : [{ ...formData }];
+      const itemsToSubmit =
+        expenseItems.length > 0 ? expenseItems : [{ ...formData }];
 
       const payload = {
         data: {
@@ -221,16 +226,18 @@ const ExpenseClaimForm: React.FC<ExpenseClaimFormProps> = ({
           employee_name: employeeProfile?.employee_name,
           department: employeeProfile?.department,
           company: employeeProfile?.company,
-          expense_items: itemsToSubmit.map(item => ({
+          expense_items: itemsToSubmit.map((item) => ({
             expense_date: formatDateForAPI(item.date),
             expense_type: item.expenseType,
             description: item.description,
             amount: parseFloat(item.amount),
-            sanctioned_amount: item.sanctionedAmount ? parseFloat(item.sanctionedAmount) : null,
+            sanctioned_amount: item.sanctionedAmount
+              ? parseFloat(item.sanctionedAmount)
+              : null,
             cost_center: item.costCenter,
-            project: item.project || null
-          }))
-        }
+            project: item.project || null,
+          })),
+        },
       };
 
       console.log("Submitting expense claim:", JSON.stringify(payload));
@@ -252,7 +259,9 @@ const ExpenseClaimForm: React.FC<ExpenseClaimFormProps> = ({
       console.error("Error submitting expense claim:", error);
       showAlert(
         "Error",
-        `Failed to submit expense claim: ${error instanceof Error ? error.message : "Unknown error"}`
+        `Failed to submit expense claim: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`
       );
       setIsSubmitting(false);
     }
@@ -261,8 +270,8 @@ const ExpenseClaimForm: React.FC<ExpenseClaimFormProps> = ({
   const formatDateForAPI = (date: Date | null): string => {
     if (!date) return "";
     const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
     return `${year}-${month}-${day}`;
   };
 
@@ -328,7 +337,9 @@ const ExpenseClaimForm: React.FC<ExpenseClaimFormProps> = ({
           keyboardShouldPersistTaps="handled"
         >
           <View style={styles.formSection}>
-            <Text style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}>
+            <Text
+              style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}
+            >
               New Expense Item
             </Text>
           </View>
@@ -347,7 +358,9 @@ const ExpenseClaimForm: React.FC<ExpenseClaimFormProps> = ({
               ]}
               onPress={() => setShowDatePicker(true)}
             >
-              <Text style={[styles.inputText, { color: theme.colors.textPrimary }]}>
+              <Text
+                style={[styles.inputText, { color: theme.colors.textPrimary }]}
+              >
                 {formatDate(formData.date)}
               </Text>
             </TouchableOpacity>
@@ -365,7 +378,8 @@ const ExpenseClaimForm: React.FC<ExpenseClaimFormProps> = ({
 
           <View style={styles.fieldContainer}>
             <Text style={[styles.label, { color: theme.colors.textSecondary }]}>
-              Expense Claim Type <Text style={{ color: theme.statusColors.error }}>*</Text>
+              Expense Claim Type{" "}
+              <Text style={{ color: theme.statusColors.error }}>*</Text>
             </Text>
             <TouchableOpacity
               style={[
@@ -379,27 +393,39 @@ const ExpenseClaimForm: React.FC<ExpenseClaimFormProps> = ({
                 setShowExpenseTypeDropdown(!showExpenseTypeDropdown);
                 setShowProjectDropdown(false);
               }}
+              disabled={loadingExpenseTypes}
             >
-              <Text
-                style={[
-                  styles.inputText,
-                  {
-                    color: formData.expenseType
-                      ? theme.colors.textPrimary
-                      : theme.colors.inputPlaceholder,
-                  },
-                ]}
-              >
-                {formData.expenseType || "Select Expense Claim Type"}
-              </Text>
-              <Ionicons
-                name="chevron-down"
-                size={20}
-                color={theme.colors.iconSecondary}
-              />
+              {loadingExpenseTypes ? (
+                <View style={styles.loadingContainer}>
+                  <ActivityIndicator size="small" color={theme.colors.iconPrimary} />
+                  <Text style={[styles.inputText, { color: theme.colors.textSecondary, marginLeft: 8 }]}>
+                    Loading...
+                  </Text>
+                </View>
+              ) : (
+                <>
+                  <Text
+                    style={[
+                      styles.inputText,
+                      {
+                        color: formData.expenseType
+                          ? theme.colors.textPrimary
+                          : theme.colors.inputPlaceholder,
+                      },
+                    ]}
+                  >
+                    {formData.expenseType || "Select Expense Claim Type"}
+                  </Text>
+                  <Ionicons
+                    name="chevron-down"
+                    size={20}
+                    color={theme.colors.iconSecondary}
+                  />
+                </>
+              )}
             </TouchableOpacity>
 
-            {showExpenseTypeDropdown && (
+            {showExpenseTypeDropdown && expenseClaimTypes.length > 0 && (
               <View
                 style={[
                   styles.dropdown,
@@ -409,21 +435,22 @@ const ExpenseClaimForm: React.FC<ExpenseClaimFormProps> = ({
                   },
                 ]}
               >
-                {expenseTypes.map((type, index) => (
+                {expenseClaimTypes.map((type, index) => (
                   <TouchableOpacity
                     key={index}
                     style={[
                       styles.dropdownItem,
                       {
                         borderBottomColor:
-                          index < expenseTypes.length - 1
+                          index < expenseClaimTypes.length - 1
                             ? theme.colors.divider
                             : "transparent",
-                        borderBottomWidth: index < expenseTypes.length - 1 ? 1 : 0,
+                        borderBottomWidth:
+                          index < expenseClaimTypes.length - 1 ? 1 : 0,
                       },
                     ]}
                     onPress={() => {
-                      setFormData({ ...formData, expenseType: type });
+                      setFormData({ ...formData, expenseType: type.name });
                       setShowExpenseTypeDropdown(false);
                     }}
                   >
@@ -433,7 +460,7 @@ const ExpenseClaimForm: React.FC<ExpenseClaimFormProps> = ({
                         { color: theme.colors.textPrimary },
                       ]}
                     >
-                      {type}
+                      {type.name}
                     </Text>
                   </TouchableOpacity>
                 ))}
@@ -481,7 +508,10 @@ const ExpenseClaimForm: React.FC<ExpenseClaimFormProps> = ({
               keyboardType="numeric"
               value={formData.amount}
               onChangeText={(text) =>
-                setFormData({ ...formData, amount: text.replace(/[^0-9.]/g, '') })
+                setFormData({
+                  ...formData,
+                  amount: text.replace(/[^0-9.]/g, ""),
+                })
               }
             />
           </View>
@@ -504,13 +534,18 @@ const ExpenseClaimForm: React.FC<ExpenseClaimFormProps> = ({
               keyboardType="numeric"
               value={formData.sanctionedAmount}
               onChangeText={(text) =>
-                setFormData({ ...formData, sanctionedAmount: text.replace(/[^0-9.]/g, '') })
+                setFormData({
+                  ...formData,
+                  sanctionedAmount: text.replace(/[^0-9.]/g, ""),
+                })
               }
             />
           </View>
 
           <View style={styles.divider}>
-            <Text style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}>
+            <Text
+              style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}
+            >
               Accounting Dimensions
             </Text>
           </View>
@@ -530,10 +565,7 @@ const ExpenseClaimForm: React.FC<ExpenseClaimFormProps> = ({
               disabled={true}
             >
               <Text
-                style={[
-                  styles.inputText,
-                  { color: theme.colors.textPrimary },
-                ]}
+                style={[styles.inputText, { color: theme.colors.textPrimary }]}
                 numberOfLines={1}
                 ellipsizeMode="tail"
               >
@@ -635,11 +667,7 @@ const ExpenseClaimForm: React.FC<ExpenseClaimFormProps> = ({
             ]}
             onPress={handleAddExpense}
           >
-            <Ionicons
-              name="add"
-              size={20}
-              color={theme.colors.textPrimary}
-            />
+            <Ionicons name="add" size={20} color={theme.colors.textPrimary} />
             <Text
               style={[
                 styles.addExpenseText,
@@ -652,7 +680,12 @@ const ExpenseClaimForm: React.FC<ExpenseClaimFormProps> = ({
 
           {expenseItems.length > 0 && (
             <View style={styles.expenseItemsContainer}>
-              <Text style={[styles.itemsHeader, { color: theme.colors.textPrimary }]}>
+              <Text
+                style={[
+                  styles.itemsHeader,
+                  { color: theme.colors.textPrimary },
+                ]}
+              >
                 Expense Items ({expenseItems.length})
               </Text>
 
@@ -663,27 +696,47 @@ const ExpenseClaimForm: React.FC<ExpenseClaimFormProps> = ({
                     styles.expenseItemCard,
                     {
                       backgroundColor: theme.colors.surfacePrimary,
-                      borderColor: theme.colors.border
-                    }
+                      borderColor: theme.colors.border,
+                    },
                   ]}
                 >
                   <View style={styles.expenseItemHeader}>
-                    <Text style={[styles.expenseItemType, { color: theme.colors.textPrimary }]}>
+                    <Text
+                      style={[
+                        styles.expenseItemType,
+                        { color: theme.colors.textPrimary },
+                      ]}
+                    >
                       {item.expenseType}
                     </Text>
-                    <Text style={[styles.expenseItemDate, { color: theme.colors.textSecondary }]}>
+                    <Text
+                      style={[
+                        styles.expenseItemDate,
+                        { color: theme.colors.textSecondary },
+                      ]}
+                    >
                       {formatDate(item.date)}
                     </Text>
                   </View>
 
                   {item.description && (
-                    <Text style={[styles.expenseItemDesc, { color: theme.colors.textSecondary }]}>
+                    <Text
+                      style={[
+                        styles.expenseItemDesc,
+                        { color: theme.colors.textSecondary },
+                      ]}
+                    >
                       {item.description}
                     </Text>
                   )}
 
                   <View style={styles.expenseItemAmount}>
-                    <Text style={[styles.expenseItemAmountText, { color: theme.colors.textPrimary }]}>
+                    <Text
+                      style={[
+                        styles.expenseItemAmountText,
+                        { color: theme.colors.textPrimary },
+                      ]}
+                    >
                       ₹{parseFloat(item.amount).toFixed(2)}
                     </Text>
                   </View>
@@ -699,231 +752,59 @@ const ExpenseClaimForm: React.FC<ExpenseClaimFormProps> = ({
           styles.buttonContainer,
           {
             backgroundColor: theme.colors.surfacePrimary,
-            borderTopColor: theme.colors.surfaceAccent
-          }
+            borderTopColor: theme.colors.surfaceAccent,
+          },
         ]}
       >
-            <TouchableOpacity
-              style={[
-                styles.cancelButton,
-                { backgroundColor: theme.colors.surfaceSecondary },
-              ]}
-              onPress={handleBackPress}
-              disabled={isSubmitting}
-            >
-              <Text
-                style={[
-                  styles.buttonText,
-                  { color: theme.colors.textPrimary },
-                ]}
-              >
-                Cancel
-              </Text>
-            </TouchableOpacity>
+        <TouchableOpacity
+          style={[
+            styles.cancelButton,
+            { backgroundColor: theme.colors.surfaceSecondary },
+          ]}
+          onPress={handleBackPress}
+          disabled={isSubmitting}
+        >
+          <Text
+            style={[styles.buttonText, { color: theme.colors.textPrimary }]}
+          >
+            Cancel
+          </Text>
+        </TouchableOpacity>
 
-            <TouchableOpacity
-              style={[
-                styles.submitButton,
-                {
-                  backgroundColor: isSubmitting
-                    ? theme.colors.buttonDisabled
-                    : theme.colors.buttonPrimary,
-                },
-              ]}
-              onPress={handleSubmitClaim}
-              disabled={isSubmitting}
-            >
-              {isSubmitting ? (
-                <ActivityIndicator color="#FFFFFF" />
-              ) : (
-                <Text
-                  style={[
-                    styles.buttonText,
-                    { color: "#FFFFFF" },
-                  ]}
-                >
-                  Submit Claim
-                </Text>
-              )}
-            </TouchableOpacity>
-          </View>
+        <TouchableOpacity
+          style={[
+            styles.submitButton,
+            {
+              backgroundColor: isSubmitting
+                ? theme.colors.buttonDisabled
+                : theme.colors.buttonPrimary,
+            },
+          ]}
+          onPress={handleSubmitClaim}
+          disabled={isSubmitting}
+        >
+          {isSubmitting ? (
+            <ActivityIndicator color="#FFFFFF" />
+          ) : (
+            <Text style={[styles.buttonText, { color: "#FFFFFF" }]}>
+              Submit Claim
+            </Text>
+          )}
+        </TouchableOpacity>
+      </View>
 
-          <AlertDialog
-            visible={alertVisible}
-            title={alertTitle}
-            message={alertMessage}
-            confirmText={alertConfirmText}
-            onConfirm={alertConfirmAction}
-            showCancel={alertShowCancel}
-            onCancel={alertCancelAction}
-            theme={theme}
-          />
-        </KeyboardAvoidingView>
-      );
-    };
+      <AlertDialog
+        visible={alertVisible}
+        title={alertTitle}
+        message={alertMessage}
+        confirmText={alertConfirmText}
+        onConfirm={alertConfirmAction}
+        showCancel={alertShowCancel}
+        onCancel={alertCancelAction}
+        theme={theme}
+      />
+    </KeyboardAvoidingView>
+  );
+};
 
-    const styles = StyleSheet.create({
-      container: {
-        flex: 1,
-      },
-      header: {
-        flexDirection: "row",
-        alignItems: "center",
-        paddingVertical: 16,
-        paddingHorizontal: 16,
-        borderBottomWidth: 1,
-      },
-      backButton: {
-        marginRight: 16,
-      },
-      title: {
-        fontSize: 20,
-        fontWeight: "600",
-      },
-      form: {
-        flex: 1,
-        paddingHorizontal: 16,
-      },
-      formSection: {
-        marginBottom: 8,
-      },
-      sectionTitle: {
-        fontSize: 18,
-        fontWeight: "600",
-        marginBottom: 4,
-        marginTop: 16
-      },
-      divider: {
-        borderBottomWidth: 1,
-        borderBottomColor: "#E5E5E5",
-        marginVertical: 16,
-      },
-      fieldContainer: {
-        marginBottom: 16,
-        position: "relative",
-      },
-      label: {
-        fontSize: 14,
-        marginBottom: 8,
-      },
-      input: {
-        height: 48,
-        borderRadius: 8,
-        paddingHorizontal: 12,
-        borderWidth: 1,
-        justifyContent: "center",
-      },
-      inputText: {
-        fontSize: 16,
-      },
-      dropdownContainer: {
-        height: 48,
-        borderRadius: 8,
-        paddingHorizontal: 12,
-        borderWidth: 1,
-        flexDirection: "row",
-        alignItems: "center",
-        justifyContent: "space-between",
-      },
-      dropdown: {
-        position: "absolute",
-        top: 80,
-        left: 0,
-        right: 0,
-        borderRadius: 8,
-        borderWidth: 1,
-        zIndex: 100,
-        elevation: 5,
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.25,
-        shadowRadius: 3.84,
-      },
-      dropdownItem: {
-        paddingVertical: 12,
-        paddingHorizontal: 16,
-      },
-      dropdownItemText: {
-        fontSize: 16,
-      },
-      addExpenseButton: {
-        height: 48,
-        borderRadius: 8,
-        borderWidth: 1,
-        flexDirection: "row",
-        alignItems: "center",
-        justifyContent: "center",
-        marginTop: 8,
-        marginBottom: 16,
-      },
-      addExpenseText: {
-        fontSize: 16,
-        fontWeight: "500",
-        marginLeft: 8,
-      },
-      expenseItemsContainer: {
-        marginTop: 16,
-      },
-      itemsHeader: {
-        fontSize: 16,
-        fontWeight: "600",
-        marginBottom: 12,
-      },
-      expenseItemCard: {
-        borderRadius: 8,
-        padding: 16,
-        marginBottom: 12,
-        borderWidth: 1,
-      },
-      expenseItemHeader: {
-        flexDirection: "row",
-        justifyContent: "space-between",
-        marginBottom: 8,
-      },
-      expenseItemType: {
-        fontSize: 16,
-        fontWeight: "600",
-      },
-      expenseItemDate: {
-        fontSize: 14,
-      },
-      expenseItemDesc: {
-        fontSize: 14,
-        marginBottom: 8,
-      },
-      expenseItemAmount: {
-        alignItems: "flex-end",
-      },
-      expenseItemAmountText: {
-        fontSize: 18,
-        fontWeight: "bold",
-      },
-      buttonContainer: {
-        flexDirection: "row",
-        justifyContent: "space-between",
-        padding: 16,
-        borderTopWidth: 1,
-      },
-      cancelButton: {
-        flex: 1,
-        marginRight: 8,
-        borderRadius: 8,
-        paddingVertical: 14,
-        alignItems: "center",
-        justifyContent: "center",
-      },
-      submitButton: {
-        flex: 1,
-        marginLeft: 8,
-        borderRadius: 8,
-        paddingVertical: 14,
-        alignItems: "center",
-        justifyContent: "center",
-      },
-      buttonText: {
-        fontSize: 16,
-        fontWeight: "600",
-      },
-    });
-
-    export default ExpenseClaimForm;
+export default ExpenseClaimForm;
