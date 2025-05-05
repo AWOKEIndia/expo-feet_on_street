@@ -50,23 +50,15 @@ const ExpenseClaimForm: React.FC<ExpenseClaimFormProps> = ({
     description: "",
     amount: "",
     sanctionedAmount: "",
-    costCenter: "BhavyaEventsAndCreatives Infomedia Private Limited",
+    costCenter: "Test",
     project: "",
   });
 
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showExpenseTypeDropdown, setShowExpenseTypeDropdown] = useState(false);
-  const [showProjectDropdown, setShowProjectDropdown] = useState(false);
   const [appState, setAppState] = useState(AppState.currentState);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [expenseItems, setExpenseItems] = useState<ExpenseClaimData[]>([]);
-
-  const projects = [
-    "Corporate Website Redesign",
-    "Mobile App Development",
-    "Marketing Campaign Q2",
-    "Product Launch Event",
-  ];
 
   // Alert dialog states
   const [alertVisible, setAlertVisible] = useState(false);
@@ -113,7 +105,6 @@ const ExpenseClaimForm: React.FC<ExpenseClaimFormProps> = ({
       if (appState === "active" && nextAppState.match(/inactive|background/)) {
         setShowDatePicker(false);
         setShowExpenseTypeDropdown(false);
-        setShowProjectDropdown(false);
       }
       setAppState(nextAppState);
     });
@@ -124,10 +115,10 @@ const ExpenseClaimForm: React.FC<ExpenseClaimFormProps> = ({
   }, [appState]);
 
   useEffect(() => {
-    if (showExpenseTypeDropdown || showProjectDropdown) {
+    if (showExpenseTypeDropdown) {
       const handleOutsideTouch = () => {
         setShowExpenseTypeDropdown(false);
-        setShowProjectDropdown(false);
+
       };
 
       const keyboardListener = Keyboard.addListener(
@@ -138,7 +129,7 @@ const ExpenseClaimForm: React.FC<ExpenseClaimFormProps> = ({
       const backHandler = BackHandler.addEventListener(
         "hardwareBackPress",
         () => {
-          if (showExpenseTypeDropdown || showProjectDropdown) {
+          if (showExpenseTypeDropdown) {
             handleOutsideTouch();
             return true;
           }
@@ -151,7 +142,7 @@ const ExpenseClaimForm: React.FC<ExpenseClaimFormProps> = ({
         backHandler.remove();
       };
     }
-  }, [showExpenseTypeDropdown, showProjectDropdown]);
+  }, [showExpenseTypeDropdown]);
 
   const formatDate = (date: Date | null): string => {
     if (!date) return "";
@@ -190,71 +181,73 @@ const ExpenseClaimForm: React.FC<ExpenseClaimFormProps> = ({
     return true;
   };
 
-  const handleAddExpense = () => {
+  const handleAddExpense = async () => {
     if (!validateExpenseItem()) return;
-
-    setExpenseItems([...expenseItems, { ...formData }]);
-
-    setFormData({
-      ...formData,
-      expenseType: "",
-      description: "",
-      amount: "",
-      sanctionedAmount: "",
-      project: "",
-    });
-
-    showAlert("Success", "Expense item added successfully");
-  };
-
-  const handleSubmitClaim = async () => {
-    if (expenseItems.length === 0 && !validateExpenseItem()) {
-      showAlert("Validation Error", "Please add at least one expense item");
-      return;
-    }
 
     setIsSubmitting(true);
 
     try {
-      const itemsToSubmit =
-        expenseItems.length > 0 ? expenseItems : [{ ...formData }];
+      // Add the current item to our expense items list
+      const updatedExpenseItems = [...expenseItems, { ...formData }];
+      setExpenseItems(updatedExpenseItems);
 
       const payload = {
-        data: {
-          doctype: "Expense Claim",
-          employee: employeeProfile?.name,
-          employee_name: employeeProfile?.employee_name,
-          department: employeeProfile?.department,
-          company: employeeProfile?.company,
-          expense_items: itemsToSubmit.map((item) => ({
-            expense_date: formatDateForAPI(item.date),
-            expense_type: item.expenseType,
-            description: item.description,
-            amount: parseFloat(item.amount),
-            sanctioned_amount: item.sanctionedAmount
-              ? parseFloat(item.sanctionedAmount)
-              : null,
-            cost_center: item.costCenter,
-            project: item.project || null,
-          })),
-        },
+        doctype: "Expense Claim",
+        employee: employeeProfile?.name,
+        employee_name: employeeProfile?.employee_name,
+        department: employeeProfile?.department,
+        company: employeeProfile?.company,
+        expense_items: updatedExpenseItems.map((item) => ({
+          expense_date: formatDateForAPI(item.date),
+          expense_type: item.expenseType,
+          description: item.description,
+          amount: parseFloat(item.amount),
+          sanctioned_amount: item.sanctionedAmount
+            ? parseFloat(item.sanctionedAmount)
+            : null,
+          cost_center: item.costCenter || "",
+          project: item.project || null,
+        })),
       };
 
       console.log("Submitting expense claim:", JSON.stringify(payload));
 
-      // Mock API call
-      setTimeout(() => {
-        setIsSubmitting(false);
-        showAlert(
-          "Success",
-          "Expense claim submitted successfully",
-          "OK",
-          () => {
-            setAlertVisible(false);
-            onSubmit(formData);
-          }
-        );
-      }, 1000);
+      // Send actual API request to the endpoint
+      const response = await fetch(`${process.env.EXPO_PUBLIC_BASE_URL}/api/resource/Expense Claim/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`
+        },
+        body: JSON.stringify(payload)
+      });
+
+      const responseData = await response.json();
+
+      if (!response.ok) {
+        throw new Error(responseData.message || 'Failed to submit expense claim');
+      }
+
+      // Reset form after successful submission
+      setFormData({
+        ...formData,
+        expenseType: "",
+        description: "",
+        amount: "",
+        sanctionedAmount: "",
+        project: "",
+      });
+
+      setIsSubmitting(false);
+      showAlert(
+        "Success",
+        "Expense claim submitted successfully",
+        "OK",
+        () => {
+          setAlertVisible(false);
+          onSubmit(formData);
+        }
+      );
     } catch (error) {
       console.error("Error submitting expense claim:", error);
       showAlert(
@@ -329,7 +322,6 @@ const ExpenseClaimForm: React.FC<ExpenseClaimFormProps> = ({
         onPress={() => {
           Keyboard.dismiss();
           setShowExpenseTypeDropdown(false);
-          setShowProjectDropdown(false);
         }}
       >
         <ScrollView
@@ -391,7 +383,6 @@ const ExpenseClaimForm: React.FC<ExpenseClaimFormProps> = ({
               ]}
               onPress={() => {
                 setShowExpenseTypeDropdown(!showExpenseTypeDropdown);
-                setShowProjectDropdown(false);
               }}
               disabled={loadingExpenseTypes}
             >
@@ -579,105 +570,6 @@ const ExpenseClaimForm: React.FC<ExpenseClaimFormProps> = ({
             </TouchableOpacity>
           </View>
 
-          <View style={styles.fieldContainer}>
-            <Text style={[styles.label, { color: theme.colors.textSecondary }]}>
-              Project
-            </Text>
-            <TouchableOpacity
-              style={[
-                styles.dropdownContainer,
-                {
-                  backgroundColor: theme.colors.inputBackground,
-                  borderColor: theme.colors.inputBorder,
-                },
-              ]}
-              onPress={() => {
-                setShowProjectDropdown(!showProjectDropdown);
-                setShowExpenseTypeDropdown(false);
-              }}
-            >
-              <Text
-                style={[
-                  styles.inputText,
-                  {
-                    color: formData.project
-                      ? theme.colors.textPrimary
-                      : theme.colors.inputPlaceholder,
-                  },
-                ]}
-              >
-                {formData.project || "Select Project"}
-              </Text>
-              <Ionicons
-                name="chevron-down"
-                size={20}
-                color={theme.colors.iconSecondary}
-              />
-            </TouchableOpacity>
-
-            {showProjectDropdown && (
-              <View
-                style={[
-                  styles.dropdown,
-                  {
-                    backgroundColor: theme.colors.surfacePrimary,
-                    borderColor: theme.colors.border,
-                  },
-                ]}
-              >
-                {projects.map((project, index) => (
-                  <TouchableOpacity
-                    key={index}
-                    style={[
-                      styles.dropdownItem,
-                      {
-                        borderBottomColor:
-                          index < projects.length - 1
-                            ? theme.colors.divider
-                            : "transparent",
-                        borderBottomWidth: index < projects.length - 1 ? 1 : 0,
-                      },
-                    ]}
-                    onPress={() => {
-                      setFormData({ ...formData, project });
-                      setShowProjectDropdown(false);
-                    }}
-                  >
-                    <Text
-                      style={[
-                        styles.dropdownItemText,
-                        { color: theme.colors.textPrimary },
-                      ]}
-                    >
-                      {project}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            )}
-          </View>
-
-          <TouchableOpacity
-            style={[
-              styles.addExpenseButton,
-              {
-                backgroundColor: theme.colors.surfaceSecondary,
-                borderColor: theme.colors.border,
-              },
-            ]}
-            onPress={handleAddExpense}
-          >
-            <Ionicons name="add" size={20} color={theme.colors.textPrimary} />
-            <Text
-              style={[
-                styles.addExpenseText,
-                { color: theme.colors.textPrimary },
-              ]}
-            >
-              Add Expense
-            </Text>
-          </TouchableOpacity>
-
           {expenseItems.length > 0 && (
             <View style={styles.expenseItemsContainer}>
               <Text
@@ -780,14 +672,14 @@ const ExpenseClaimForm: React.FC<ExpenseClaimFormProps> = ({
                 : theme.colors.buttonPrimary,
             },
           ]}
-          onPress={handleSubmitClaim}
+          onPress={handleAddExpense}
           disabled={isSubmitting}
         >
           {isSubmitting ? (
             <ActivityIndicator color="#FFFFFF" />
           ) : (
             <Text style={[styles.buttonText, { color: "#FFFFFF" }]}>
-              Submit Claim
+              Add Expense
             </Text>
           )}
         </TouchableOpacity>
