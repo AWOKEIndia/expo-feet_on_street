@@ -2,15 +2,17 @@ import { useTheme } from "@/contexts/ThemeContext";
 import { Ionicons } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import React from "react";
-import { Text, TouchableOpacity, View } from "react-native";
+import { Platform, Text, TouchableOpacity, View } from "react-native";
 import { sharedStyles } from "../styles";
 import { months } from "moment";
+import { useState } from "react";
 
 interface DatesSectionProps {
   formData: {
     fromDate: Date | null;
     toDate: Date | null;
     isHalfDay: boolean;
+    halfDayDate?: Date | null;
   };
   setFormData: React.Dispatch<React.SetStateAction<any>>;
   showFromDatePicker: boolean;
@@ -38,6 +40,7 @@ const DatesSection: React.FC<DatesSectionProps> = ({
   toggleCheckbox,
 }) => {
   const { theme } = useTheme();
+  const [showHalfDayDatePicker, setShowHalfDayDatePicker] = useState(false);
 
   const formatDate = (date: Date | null): string => {
     if (!date) return "";
@@ -48,13 +51,36 @@ const DatesSection: React.FC<DatesSectionProps> = ({
     });
   };
 
+  const handleHalfDayDateChange = (event: any, selectedDate?: Date) => {
+    if (Platform.OS === "android") {
+      setShowHalfDayDatePicker(false);
+    }
+
+    if (event.type === "set" && selectedDate) {
+      setFormData({ ...formData, halfDayDate: selectedDate });
+    }
+  };
+
+  const showAndroidHalfDayDatePicker = () => {
+    setShowFromDatePicker(false);
+    setShowToDatePicker(false);
+    setShowHalfDayDatePicker(true);
+  };
+
+  const toggleHalfDay = () => {
+    const newIsHalfDay = !formData.isHalfDay;
+    setFormData({
+      ...formData,
+      isHalfDay: newIsHalfDay,
+      halfDayDate: newIsHalfDay ? formData.fromDate : null
+    });
+  };
+
   return (
     <>
       {/* Section Divider */}
       <View style={sharedStyles.sectionContainer}>
-        <Text
-          style={[sharedStyles.sectionTitle, { color: theme.colors.textPrimary }]}
-        >
+        <Text style={[sharedStyles.sectionTitle, { color: theme.colors.textPrimary }]}>
           Dates & Reason
         </Text>
       </View>
@@ -161,7 +187,7 @@ const DatesSection: React.FC<DatesSectionProps> = ({
       <View style={sharedStyles.checkboxRow}>
         <TouchableOpacity
           style={sharedStyles.checkboxContainer}
-          onPress={() => toggleCheckbox("isHalfDay")}
+          onPress={toggleHalfDay}
         >
           <View
             style={{
@@ -195,8 +221,59 @@ const DatesSection: React.FC<DatesSectionProps> = ({
           Half Day
         </Text>
       </View>
+
+      {/* Half Day Date Picker (only shown when isHalfDay is true) */}
+      {formData.isHalfDay && (
+        <View style={sharedStyles.fieldContainer}>
+          <Text style={[sharedStyles.label, { color: theme.colors.textPrimary }]}>
+            Half Day Date <Text style={{ color: theme.statusColors.error }}>*</Text>
+          </Text>
+          <TouchableOpacity
+            style={[
+              sharedStyles.input,
+              {
+                backgroundColor: theme.colors.inputBackground,
+                borderColor: theme.colors.inputBorder,
+              },
+            ]}
+            onPress={showAndroidHalfDayDatePicker}
+          >
+            <Text
+              style={[
+                sharedStyles.inputText,
+                {
+                  color: formData.halfDayDate
+                    ? theme.colors.textPrimary
+                    : theme.colors.inputPlaceholder,
+                },
+              ]}
+            >
+              {formData.halfDayDate ? formatDate(formData.halfDayDate) : "Select Half Day Date"}
+            </Text>
+            <Ionicons
+              name="calendar-outline"
+              size={20}
+              color={theme.colors.iconSecondary}
+              style={sharedStyles.calendarIcon}
+            />
+          </TouchableOpacity>
+
+          {showHalfDayDatePicker && (
+            <DateTimePicker
+              testID="halfDayDatePicker"
+              value={formData.halfDayDate || formData.fromDate || new Date()}
+              mode="date"
+              display="default"
+              onChange={handleHalfDayDateChange}
+              minimumDate={formData.fromDate || new Date()}
+              maximumDate={formData.toDate || undefined}
+            />
+          )}
+        </View>
+      )}
     </>
   );
 };
+
 
 export default DatesSection;

@@ -49,6 +49,7 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
     fromDate: null,
     toDate: null,
     isHalfDay: false,
+    halfDayDate: null,
     reason: "",
     leaveApprover: "",
     attachments: [],
@@ -86,13 +87,15 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
     const days = calculateDaysBetween(
       formData.fromDate,
       formData.toDate,
-      formData.isHalfDay
+      formData.isHalfDay,
+      formData.halfDayDate
     );
     setRequestedDays(days);
   }, [
     formData.fromDate,
     formData.toDate,
     formData.isHalfDay,
+    formData.halfDayDate,
     calculateDaysBetween,
   ]);
 
@@ -258,6 +261,38 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
       return false;
     }
 
+    if (formData.isHalfDay && !formData.halfDayDate) {
+      showAlertDialog({
+        title: "Validation Error",
+        message: "Please select a half day date",
+        showCancel: false,
+        onConfirm: hideAlertDialog,
+      });
+      return false;
+    }
+
+    if (formData.isHalfDay && formData.halfDayDate) {
+      if (formData.fromDate && formData.halfDayDate < formData.fromDate) {
+        showAlertDialog({
+          title: "Validation Error",
+          message: "Half day date cannot be before from date",
+          showCancel: false,
+          onConfirm: hideAlertDialog,
+        });
+        return false;
+      }
+
+      if (formData.toDate && formData.halfDayDate > formData.toDate) {
+        showAlertDialog({
+          title: "Validation Error",
+          message: "Half day date cannot be after to date",
+          showCancel: false,
+          onConfirm: hideAlertDialog,
+        });
+        return false;
+      }
+    }
+
     if (!formData.leaveApprover) {
       showAlertDialog({
         title: "Validation Error",
@@ -316,6 +351,9 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
         from_date: formatDateForAPI(formData.fromDate),
         to_date: formatDateForAPI(formData.toDate),
         half_day: formData.isHalfDay ? 1 : 0,
+        half_day_date: formData.isHalfDay && formData.halfDayDate
+        ? formatDateForAPI(formData.halfDayDate)
+        : null,
         description: formData.reason,
         leave_approver: formData.leaveApprover,
         status: "Open",

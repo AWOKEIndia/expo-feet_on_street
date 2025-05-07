@@ -92,13 +92,11 @@ const useLeaveTypes = (accessToken: string, employeeId: string) => {
 
   const fetchLeaveTypes = useCallback(async () => {
     if (cacheRef.current[cacheKey] && !refreshing) {
-      // If we have cached data, use it but still update the balance info
       const enrichedTypes = enrichLeaveTypesWithBalance(
         cacheRef.current[cacheKey],
         leaveBalances
       );
       setLeaveTypes(enrichedTypes);
-      // Filter for display in dropdown
       const filtered = filterLeaveTypesForDisplay(enrichedTypes);
       setFilteredLeaveTypes(filtered);
       return;
@@ -216,26 +214,37 @@ const useLeaveTypes = (accessToken: string, employeeId: string) => {
   const calculateDaysBetween = (
     fromDate?: Date | null,
     toDate?: Date | null,
-    isHalfDay: boolean = false
+    isHalfDay: boolean = false,
+    halfDayDate?: Date | null
   ): number => {
     if (!fromDate || !toDate) return 0;
 
     const oneDay = 24 * 60 * 60 * 1000; // milliseconds in a day
-
-    // Clone dates to avoid modifying the original objects
     const start = new Date(fromDate);
     const end = new Date(toDate);
 
-    // Reset time part for accurate date difference calculation
     start.setHours(0, 0, 0, 0);
     end.setHours(0, 0, 0, 0);
 
-    // Calculate difference in days
-    const diffDays =
-      Math.round(Math.abs((end.getTime() - start.getTime()) / oneDay)) + 1;
+    // Calculate difference in days (inclusive of both start and end dates)
+    const diffDays = Math.round(Math.abs((end.getTime() - start.getTime()) / oneDay)) + 1;
 
-    // Adjust for half day if applicable
-    return isHalfDay ? diffDays - 0.5 : diffDays;
+    // Handle half day cases
+    if (isHalfDay) {
+      if (halfDayDate) {
+        const halfDay = new Date(halfDayDate);
+        halfDay.setHours(0, 0, 0, 0);
+
+        if (halfDay < start || halfDay > end) {
+          console.warn("Half day date is outside the selected range. Using default half day calculation.");
+          return diffDays - 0.5;
+        }
+        if (diffDays === 1) return 0.5;
+        return diffDays - 0.5;
+      }
+      return diffDays - 0.5;
+    }
+    return diffDays;
   };
 
   const refresh = useCallback(() => {
@@ -263,8 +272,8 @@ const useLeaveTypes = (accessToken: string, employeeId: string) => {
   }, []);
 
   return {
-    data: filteredLeaveTypes, // Return filtered list for display
-    allLeaveTypes: leaveTypes, // Return all leave types with balance info
+    data: filteredLeaveTypes,
+    allLeaveTypes: leaveTypes,
     loading: loading || balanceLoading,
     error: error || balanceError,
     refreshing,
