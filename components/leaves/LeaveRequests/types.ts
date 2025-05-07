@@ -4,6 +4,7 @@ export interface LeaveRequestData {
   fromDate: Date | null;
   toDate: Date | null;
   isHalfDay: boolean;
+  halfDayDate: Date | null;
   reason: string;
   leaveApprover: string;
   attachments: Attachment[];
