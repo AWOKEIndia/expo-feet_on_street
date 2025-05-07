@@ -1,26 +1,30 @@
+import AttendanceDetailsModal from "@/components/attendance/AttendanceDetails";
+import AttendanceView from "@/components/attendance/AttendanceView";
+import LeaveBalance from "@/components/leaves/LeaveBalance";
+import LeaveDetailsModal from "@/components/leaves/LeaveDetails";
 import { useAuthContext } from "@/contexts/AuthContext";
 import { useTheme } from "@/contexts/ThemeContext";
+import useAttendance from "@/hooks/useAttendance";
+import useAttendanceRequests from "@/hooks/useAttendanceRequest";
+import useHolidays from "@/hooks/useHolidays";
+import useLeaveBalance from "@/hooks/useLeaveBalance";
+import useLeaveApplications from "@/hooks/useLeaves";
 import { Ionicons } from "@expo/vector-icons";
-import React, { useEffect, useState, useMemo } from "react";
+import dayjs from "dayjs";
+import React, { useEffect, useMemo, useState } from "react";
 import {
+  ActivityIndicator,
+  FlatList,
+  Modal,
+  Platform,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
+  TouchableWithoutFeedback,
   View,
-  Platform,
-  RefreshControl,
-  ActivityIndicator,
 } from "react-native";
-import AttendanceView from "@/components/attendance/AttendanceView";
-import useAttendance from "@/hooks/useAttendance";
-import useLeaveApplications from "@/hooks/useLeaves";
-import useAttendanceRequests from "@/hooks/useAttendanceRequest";
-import useLeaveBalance from "@/hooks/useLeaveBalance";
-import LeaveDetailsModal from "@/components/leaves/LeaveDetails";
-import AttendanceDetailsModal from "@/components/attendance/AttendanceDetails";
-import LeaveBalance from "@/components/leaves/LeaveBalance";
-import dayjs from "dayjs";
 
 type ActivityType = {
   name: string;
@@ -30,6 +34,11 @@ type ActivityType = {
   duration: string;
   status: string;
   id: string;
+};
+
+type Holiday = {
+  description: string;
+  holiday_date: string;
 };
 
 const AttendanceAndLeavesScreen = () => {
@@ -45,6 +54,8 @@ const AttendanceAndLeavesScreen = () => {
   const [isAttendanceModalVisible, setIsAttendanceModalVisible] =
     useState(false);
 
+  // State for holiday modal
+  const [isHolidayModalVisible, setIsHolidayModalVisible] = useState(false);
   const [employeeId, setEmployeeId] = useState("");
 
   useEffect(() => {
@@ -57,8 +68,8 @@ const AttendanceAndLeavesScreen = () => {
     accessToken ?? "",
     employeeId
   );
-
   const leaveBalanceResource = useLeaveBalance(accessToken ?? "", employeeId);
+  const holidaysResource = useHolidays(accessToken ?? "", employeeId);
 
   const leaveBalances = useMemo(() => {
     const leaveTypeColors = {
@@ -142,6 +153,16 @@ const AttendanceAndLeavesScreen = () => {
     setIsAttendanceModalVisible(false);
     setSelectedAttendanceId(null);
     attendanceRequestResource.clearSelectedAttendance?.();
+  };
+
+  // Function to open the holiday modal
+  const handleOpenHolidayModal = () => {
+    setIsHolidayModalVisible(true);
+  };
+
+  // Function to close the holiday modal
+  const handleCloseHolidayModal = () => {
+    setIsHolidayModalVisible(false);
   };
 
   const TabButtons = () => (
@@ -326,14 +347,43 @@ const AttendanceAndLeavesScreen = () => {
 
     return (
       <View style={styles.recentActivitySection}>
-        <Text
-          style={[
-            styles.sectionTitle,
-            { color: theme.colors.textPrimary, paddingHorizontal: 16 },
-          ]}
-        >
-          Recent {activeTab === "attendance" ? "Attendance" : "Leave"} Requests
-        </Text>
+        <View style={styles.sectionTitleContainer}>
+          <Text
+            style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}
+          >
+            Recent {activeTab === "attendance" ? "Attendance" : "Leave"}{" "}
+            Requests
+          </Text>
+
+          {/* Only show the holiday button when on the leaves tab */}
+          {activeTab === "leaves" && (
+            <TouchableOpacity
+              style={[
+                styles.holidayButton,
+                {
+                  borderColor: isDark
+                    ? "rgba(255,255,255,0.2)"
+                    : "rgba(0,0,0,0.1)",
+                },
+              ]}
+              onPress={handleOpenHolidayModal}
+            >
+              <Ionicons
+                name="calendar-outline"
+                size={18}
+                color={theme.colors.textSecondary}
+              />
+              <Text
+                style={[
+                  styles.holidayButtonText,
+                  { color: theme.colors.textSecondary },
+                ]}
+              >
+                View Holidays
+              </Text>
+            </TouchableOpacity>
+          )}
+        </View>
 
         {isLoading ? (
           <View style={styles.loadingContainer}>
@@ -362,6 +412,115 @@ const AttendanceAndLeavesScreen = () => {
       </View>
     );
   };
+
+  // Holiday list item renderer
+  const renderHolidayItem = ({ item }: { item: Holiday }) => {
+    const holidayDate = dayjs(item.holiday_date);
+    const formattedDate = `${holidayDate.format("ddd")}, ${holidayDate.format(
+      "D MMM YYYY"
+    )}`;
+
+    return (
+      <View
+        style={[
+          styles.holidayItem,
+          {
+            borderBottomColor: isDark
+              ? "rgba(255,255,255,0.1)"
+              : "rgba(0,0,0,0.1)",
+          },
+        ]}
+      >
+        <Ionicons
+          name="calendar-outline"
+          size={24}
+          color={isDark ? theme.colors.textSecondary : "#888"}
+        />
+        <View style={styles.holidayDetails}>
+          <Text
+            style={[styles.holidayName, { color: theme.colors.textPrimary }]}
+          >
+            {item.description}
+          </Text>
+        </View>
+        <Text
+          style={[styles.holidayDate, { color: theme.colors.textSecondary }]}
+        >
+          {formattedDate}
+        </Text>
+      </View>
+    );
+  };
+
+  // Holiday Modal Component
+  const HolidayModal = () => (
+    <Modal
+      visible={isHolidayModalVisible}
+      animationType="slide"
+      transparent={true}
+      onRequestClose={handleCloseHolidayModal}
+    >
+      <TouchableWithoutFeedback onPress={handleCloseHolidayModal}>
+        <View style={styles.modalContainer}>
+          <TouchableWithoutFeedback>
+            <View
+              style={[
+                styles.modalContent,
+                { backgroundColor: theme.colors.surfacePrimary },
+              ]}
+            >
+              <View style={styles.modalHeader}>
+                <Text
+                  style={[styles.modalTitle, { color: theme.colors.textPrimary }]}
+                >
+                  Holiday List
+                </Text>
+              </View>
+
+              <View style={styles.modalDragIndicator} />
+
+              {holidaysResource.loading ? (
+                <View style={styles.loadingContainer}>
+                  <ActivityIndicator
+                    size="large"
+                    color={theme.brandColors.primary}
+                  />
+                </View>
+              ) : holidaysResource.data.length > 0 ? (
+                <FlatList
+                  data={holidaysResource.data.sort(
+                    (a, b) =>
+                      dayjs(a.holiday_date).valueOf() -
+                      dayjs(b.holiday_date).valueOf()
+                  )}
+                  renderItem={renderHolidayItem}
+                  keyExtractor={(item) => item.name}
+                  contentContainerStyle={styles.holidayListContent}
+                  refreshControl={
+                    <RefreshControl
+                      refreshing={holidaysResource.refreshing}
+                      onRefresh={holidaysResource.refresh}
+                      colors={[theme.brandColors.primary]}
+                      tintColor={theme.brandColors.primary}
+                    />
+                  }
+                />
+              ) : (
+                <Text
+                  style={[
+                    styles.emptyListText,
+                    { color: theme.colors.textSecondary },
+                  ]}
+                >
+                  No holidays found
+                </Text>
+              )}
+            </View>
+          </TouchableWithoutFeedback>
+        </View>
+      </TouchableWithoutFeedback>
+    </Modal>
+  );
 
   return (
     <View
@@ -433,6 +592,9 @@ const AttendanceAndLeavesScreen = () => {
         onClose={handleCloseModal}
         theme={theme}
       />
+
+      {/* Holiday Modal */}
+      <HolidayModal />
     </View>
   );
 };
@@ -462,6 +624,30 @@ const styles = StyleSheet.create({
   recentActivitySection: {
     paddingTop: 12,
     paddingBottom: 16,
+  },
+  sectionTitleContainer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    marginBottom: 12,
+  },
+  sectionTitle: {
+    fontSize: 22,
+    fontWeight: "600",
+    marginTop: 8,
+  },
+  holidayButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 8,
+    paddingHorizontal: 2,
+    borderRadius: 6,
+  },
+  holidayButtonText: {
+    fontSize: 13,
+    fontWeight: "500",
+    marginLeft: 6,
   },
   activityListContent: {
     paddingHorizontal: 16,
@@ -503,16 +689,62 @@ const styles = StyleSheet.create({
     textAlign: "center",
     padding: 16,
   },
-  sectionTitle: {
-    fontSize: 22,
-    fontWeight: "600",
-    marginBottom: 12,
-    marginTop: 8,
-  },
   loadingContainer: {
     padding: 20,
     alignItems: "center",
     justifyContent: "center",
+  },
+  modalContainer: {
+    flex: 1,
+    justifyContent: "flex-end",
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+  },
+  modalContent: {
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingTop: 6,
+    maxHeight: "60%",
+  },
+  modalHeader: {
+    alignItems: "center",
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: "600",
+    marginVertical: 6,
+  },
+  modalDragIndicator: {
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: "#D0D0D0",
+    alignSelf: "center",
+  },
+  holidayListContent: {
+    paddingHorizontal: 12,
+    paddingTop: 8,
+    paddingBottom: 16,
+  },
+  holidayItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    borderBottomWidth: 1,
+  },
+  holidayDetails: {
+    flex: 1,
+    marginLeft: 16,
+  },
+  holidayName: {
+    fontSize: 15,
+    fontWeight: "800",
+  },
+  holidayDate: {
+    fontSize: 14,
+    textAlign: "right",
   },
 });
 
