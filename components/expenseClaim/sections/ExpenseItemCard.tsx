@@ -38,7 +38,7 @@ const ExpenseItemCard: React.FC<ExpenseItemCardProps> = ({ item, index }) => {
             { color: theme.colors.textPrimary },
           ]}
         >
-          {item.expenseType}
+          {item.expense_type}
         </Text>
         <TouchableOpacity>
           <Ionicons
@@ -55,7 +55,7 @@ const ExpenseItemCard: React.FC<ExpenseItemCardProps> = ({ item, index }) => {
         ]}
       >
         Sanctioned: ₹{" "}
-        {item.sanctionedAmount ? parseFloat(item.sanctionedAmount).toFixed(0) : parseFloat(item.amount).toFixed(0)} · {formatDate(item.date)}
+        {item.sanctioned_amount ? item.sanctioned_amount.toFixed(0) : item.amount.toFixed(0)} · {formatDate(item.date)}
       </Text>
       <View style={styles.expenseItemAmount}>
         <Text
@@ -64,7 +64,7 @@ const ExpenseItemCard: React.FC<ExpenseItemCardProps> = ({ item, index }) => {
             { color: theme.colors.textPrimary },
           ]}
         >
-          ₹ {parseFloat(item.amount).toFixed(0)}
+          ₹ {item.amount.toFixed(0)}
         </Text>
       </View>
     </View>

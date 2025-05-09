@@ -14,37 +14,31 @@ import DateTimePicker from "@react-native-community/datetimepicker";
 import { useTheme } from "@/contexts/ThemeContext";
 import { styles } from "../styles";
 import useExpenseClaimTypes from "@/hooks/useExpenseClaimTypes";
-import { ExpenseItem } from "../types";
 import { useAuthContext } from "@/contexts/AuthContext";
 
 interface AddExpenseModalProps {
   visible: boolean;
   onClose: () => void;
-  expenseItems: ExpenseItem[];
-  setExpenseItems: (items: ExpenseItem[]) => void;
+  onAddExpense: (expense: any) => void;
+  costCenter?: string;
 }
 
 const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
   visible,
   onClose,
-  expenseItems,
-  setExpenseItems,
+  onAddExpense,
+  costCenter,
 }) => {
   const { theme } = useTheme();
   const { accessToken } = useAuthContext();
-  const [expenseFormData, setExpenseFormData] = useState<ExpenseItem>({
-    date: new Date(),
-    expenseType: "",
-    description: "",
-    amount: "",
-    sanctionedAmount: "",
-    costCenter: "BhavyaEventsAndCreatives Infomedia Privat...",
-    project: "",
-  });
+  const [date, setDate] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [expenseType, setExpenseType] = useState("");
+  const [description, setDescription] = useState("");
+  const [amount, setAmount] = useState("");
+  const [sanctionedAmount, setSanctionedAmount] = useState("");
   const [showExpenseTypeDropdown, setShowExpenseTypeDropdown] = useState(false);
-  const { data: expenseClaimTypes, loading: loadingExpenseTypes } =
-    useExpenseClaimTypes(accessToken as string);
+  const { data: expenseClaimTypes, loading: loadingExpenseTypes } = useExpenseClaimTypes(accessToken as string);
 
   const formatDate = (date: Date) => {
     if (!date) return "";
@@ -54,49 +48,39 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
     return `${day}/${month}/${year}`;
   };
 
-  const handleDateChange = (event: any, selectedDate: any) => {
+  const handleDateChange = (event: any, selectedDate?: Date) => {
     if (Platform.OS === "android") {
       setShowDatePicker(false);
     }
 
     if (event.type === "set" && selectedDate) {
-      setExpenseFormData({ ...expenseFormData, date: selectedDate });
+      setDate(selectedDate);
     }
   };
 
-  const validateExpenseItem = () => {
-    if (!expenseFormData.date) {
-      return false;
+  const handleAdd = () => {
+    if (!expenseType || !amount) {
+      return;
     }
 
-    if (!expenseFormData.expenseType) {
-      return false;
-    }
+    const expense = {
+      expense_date: date.toISOString().split('T')[0], // Format as YYYY-MM-DD
+      expense_type: expenseType,
+      description,
+      amount: parseFloat(amount),
+      sanctioned_amount: sanctionedAmount ? parseFloat(sanctionedAmount) : parseFloat(amount),
+      cost_center: costCenter,
+    };
 
-    if (!expenseFormData.amount || parseFloat(expenseFormData.amount) <= 0) {
-      return false;
-    }
-
-    return true;
-  };
-
-  const handleAddExpense = () => {
-    if (!validateExpenseItem()) return;
-
-    const newExpenseItem = { ...expenseFormData };
-    setExpenseItems([...expenseItems, newExpenseItem]);
-
-    setExpenseFormData({
-      date: new Date(),
-      expenseType: "",
-      description: "",
-      amount: "",
-      sanctionedAmount: "",
-      costCenter: "BhavyaEventsAndCreatives Infomedia Privat...",
-      project: "",
-    });
-
+    onAddExpense(expense);
     onClose();
+
+    // Reset form
+    setDate(new Date());
+    setExpenseType("");
+    setDescription("");
+    setAmount("");
+    setSanctionedAmount("");
   };
 
   return (
@@ -143,17 +127,15 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
               ]}
               onPress={() => setShowDatePicker(true)}
             >
-              <Text
-                style={[styles.inputText, { color: theme.colors.textPrimary }]}
-              >
-                {formatDate(expenseFormData.date)}
+              <Text style={[styles.inputText, { color: theme.colors.textPrimary }]}>
+                {formatDate(date)}
               </Text>
             </TouchableOpacity>
 
             {showDatePicker && (
               <DateTimePicker
                 testID="datePicker"
-                value={expenseFormData.date || new Date()}
+                value={date}
                 mode="date"
                 display="default"
                 onChange={handleDateChange}
@@ -190,13 +172,13 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
                     style={[
                       styles.inputText,
                       {
-                        color: expenseFormData.expenseType
+                        color: expenseType
                           ? theme.colors.textPrimary
                           : theme.colors.inputPlaceholder,
                       },
                     ]}
                   >
-                    {expenseFormData.expenseType || "Select Expense Claim Type"}
+                    {expenseType || "Select Expense Claim Type"}
                   </Text>
                   <Ionicons
                     name="chevron-down"
@@ -232,7 +214,7 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
                       },
                     ]}
                     onPress={() => {
-                      setExpenseFormData({ ...expenseFormData, expenseType: type.name });
+                      setExpenseType(type.name);
                       setShowExpenseTypeDropdown(false);
                     }}
                   >
@@ -265,10 +247,8 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
               ]}
               placeholder="Enter Description"
               placeholderTextColor={theme.colors.inputPlaceholder}
-              value={expenseFormData.description}
-              onChangeText={(text) =>
-                setExpenseFormData({ ...expenseFormData, description: text })
-              }
+              value={description}
+              onChangeText={setDescription}
             />
           </View>
 
@@ -288,13 +268,8 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
               placeholder="0.00"
               placeholderTextColor={theme.colors.inputPlaceholder}
               keyboardType="numeric"
-              value={expenseFormData.amount}
-              onChangeText={(text) =>
-                setExpenseFormData({
-                  ...expenseFormData,
-                  amount: text.replace(/[^0-9.]/g, ""),
-                })
-              }
+              value={amount}
+              onChangeText={(text) => setAmount(text.replace(/[^0-9.]/g, ""))}
             />
           </View>
 
@@ -314,20 +289,13 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
               placeholder="0.00"
               placeholderTextColor={theme.colors.inputPlaceholder}
               keyboardType="numeric"
-              value={expenseFormData.sanctionedAmount}
-              onChangeText={(text) =>
-                setExpenseFormData({
-                  ...expenseFormData,
-                  sanctionedAmount: text.replace(/[^0-9.]/g, ""),
-                })
-              }
+              value={sanctionedAmount}
+              onChangeText={(text) => setSanctionedAmount(text.replace(/[^0-9.]/g, ""))}
             />
           </View>
 
           <View style={styles.divider}>
-            <Text
-              style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}
-            >
+            <Text style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}>
               Accounting Dimensions
             </Text>
           </View>
@@ -351,7 +319,7 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
                 numberOfLines={1}
                 ellipsizeMode="tail"
               >
-                {expenseFormData.costCenter}
+                {costCenter || "Not specified"}
               </Text>
               <Ionicons
                 name="chevron-down"
@@ -368,7 +336,7 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
                 backgroundColor: theme.colors.buttonPrimary,
               },
             ]}
-            onPress={handleAddExpense}
+            onPress={handleAdd}
           >
             <Ionicons name="add-circle-outline" size={20} color="#FFFFFF" />
             <Text style={[styles.addExpenseText, { color: "#FFFFFF" }]}>

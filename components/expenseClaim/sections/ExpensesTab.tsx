@@ -7,14 +7,7 @@ import ExpenseItemCard from "./ExpenseItemCard";
 import TaxItemCard from "./TaxItemCard";
 import { ExpenseItem, TaxItem } from "../types";
 
-interface ExpensesTabProps {
-  expenseItems: ExpenseItem[];
-  taxItems: TaxItem[];
-  totalAmount: number;
-  totalTaxAmount: number;
-  setShowAddExpenseModal: (show: boolean) => void;
-  setShowAddTaxModal: (show: boolean) => void;
-}
+import { ExpensesTabProps } from "../types";
 
 const ExpensesTab: React.FC<ExpensesTabProps> = ({
   expenseItems,

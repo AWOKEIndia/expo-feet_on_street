@@ -8,12 +8,13 @@ interface TotalsTabProps {
   costCenter: string;
   totalAmount: number;
   totalSanctionedAmount: number;
+  grandTotal: number
 }
 
 const TotalsTab: React.FC<TotalsTabProps> = ({
   costCenter,
   totalAmount,
-  totalSanctionedAmount
+  totalSanctionedAmount,
 }) => {
   const { theme } = useTheme();
 

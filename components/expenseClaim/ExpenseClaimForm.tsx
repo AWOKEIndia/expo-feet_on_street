@@ -6,7 +6,7 @@ import {
   Pressable,
   ActivityIndicator,
   TouchableOpacity,
-  Text
+  Text,
 } from "react-native";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useAuthContext } from "@/contexts/AuthContext";
@@ -19,21 +19,50 @@ import AddExpenseModal from "./sections/AddExpenseModal";
 import AddTaxModal from "./sections/AddTaxModal";
 import AlertDialog from "../AlertDialog";
 import { TabType } from "./types";
-
 import { styles } from "./styles";
 
-import type { ExpenseItem, TaxItem } from "./types";
-
+interface ExpenseClaimData {
+  name?: string;
+  expenses: Array<{
+    expense_date: string;
+    expense_type: string;
+    description?: string;
+    amount: number;
+    sanctioned_amount?: number;
+    cost_center?: string;
+    project?: string;
+  }>;
+  taxes: Array<{
+    account_head: string;
+    rate?: number;
+    amount: number;
+    description?: string;
+    cost_center?: string;
+    project?: string;
+  }>;
+  advances: Array<any>;
+  total_sanctioned_amount: number;
+  grand_total: number;
+  total_claimed_amount: number;
+  cost_center?: string;
+}
 
 const ExpenseClaimForm = ({ navigation }: any) => {
   const { theme } = useTheme();
   const { accessToken, employeeProfile } = useAuthContext();
 
   const [activeTab, setActiveTab] = useState<TabType>(TabType.EXPENSES);
-  const [expenseItems, setExpenseItems] = useState<ExpenseItem[]>([]);
-  const [taxItems, setTaxItems] = useState<TaxItem[]>([]);
-  const [totalAmount, setTotalAmount] = useState(0);
-  const [totalTaxAmount, setTotalTaxAmount] = useState(0);
+  const [expenseClaimData, setExpenseClaimData] = useState<ExpenseClaimData>({
+    expenses: [],
+    taxes: [],
+    advances: [],
+    total_sanctioned_amount: 0,
+    grand_total: 0,
+    total_claimed_amount: 0,
+  });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showAddExpenseModal, setShowAddExpenseModal] = useState(false);
+  const [showAddTaxModal, setShowAddTaxModal] = useState(false);
 
   // Alert dialog states
   const [alertVisible, setAlertVisible] = useState(false);
@@ -41,33 +70,132 @@ const ExpenseClaimForm = ({ navigation }: any) => {
   const [alertMessage, setAlertMessage] = useState("");
   const [alertConfirmText, setAlertConfirmText] = useState("OK");
   const [alertShowCancel, setAlertShowCancel] = useState(false);
-  const [alertConfirmAction, setAlertConfirmAction] = useState<() => void>(() => {});
-  const [alertCancelAction, setAlertCancelAction] = useState<() => void>(() => {});
-
-  // Modal states
-  const [showAddExpenseModal, setShowAddExpenseModal] = useState(false);
-  const [showAddTaxModal, setShowAddTaxModal] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
-  // Update totals when items change
-  useEffect(() => {
-    const expenseTotal = expenseItems.reduce(
-      (sum, item) => sum + parseFloat(item.amount || "0"),
-      0
-    );
-    setTotalAmount(expenseTotal);
-
-    const taxTotal = taxItems.reduce(
-      (sum, item) => sum + parseFloat(item.amount || "0"),
-      0
-    );
-    setTotalTaxAmount(taxTotal);
-  }, [expenseItems, taxItems]);
-
-  const totalSanctionedAmount = expenseItems.reduce(
-    (sum, item) => sum + parseFloat(item.sanctionedAmount || item.amount || "0"),
-    0
+  const [alertConfirmAction, setAlertConfirmAction] = useState<() => void>(
+    () => {}
   );
+  const [alertCancelAction, setAlertCancelAction] = useState<() => void>(
+    () => {}
+  );
+
+  const fetchExpenseClaim = async (name: string) => {
+    try {
+      const response = await fetch(
+        `${process.env.EXPO_PUBLIC_BASE_URL}/api/resource/Expense Claim/${name}`,
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        }
+      );
+      const data = await response.json();
+      if (response.ok) {
+        setExpenseClaimData(data.data);
+      } else {
+        throw new Error(data.message || "Failed to fetch expense claim");
+      }
+    } catch (error) {
+      console.error("Error fetching expense claim:", error);
+      showAlert("Error", "Failed to load expense claim");
+    }
+  };
+
+  const handleSubmitClaim = async () => {
+    if (expenseClaimData.expenses.length === 0) {
+      showAlert("Validation Error", "Please add at least one expense item");
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      const payload = {
+        doctype: "Expense Claim",
+        employee: employeeProfile?.name,
+        employee_name: employeeProfile?.employee_name,
+        department: employeeProfile?.department,
+        company: employeeProfile?.company,
+        expenses: expenseClaimData.expenses.map((expense) => ({
+          expense_date: expense.expense_date,
+          expense_type: expense.expense_type,
+          description: expense.description || "",
+          amount: expense.amount,
+          sanctioned_amount: expense.sanctioned_amount || expense.amount,
+          cost_center:
+            expense.cost_center || expenseClaimData.cost_center || "",
+          project: expense.project || null,
+        })),
+        taxes: expenseClaimData.taxes.map((tax) => ({
+          account_head: tax.account_head,
+          rate: tax.rate || null,
+          amount: tax.amount,
+          description: tax.description || "",
+          cost_center: tax.cost_center || expenseClaimData.cost_center || "",
+          project: tax.project || null,
+        })),
+        advances: expenseClaimData.advances,
+      };
+
+      const response = await fetch(
+        `${process.env.EXPO_PUBLIC_BASE_URL}/api/resource/Expense Claim`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${accessToken}`,
+          },
+          body: JSON.stringify(payload),
+        }
+      );
+
+      const responseData = await response.json();
+      console.log(responseData);
+
+      if (!response.ok) {
+        throw new Error(
+          responseData.message || "Failed to submit expense claim"
+        );
+      }
+
+      // Fetch the created expense claim to get all fields
+      await fetchExpenseClaim(responseData.data.name);
+
+      showAlert("Success", "Expense claim submitted successfully", "OK", () =>
+        navigation.goBack()
+      );
+    } catch (error) {
+      console.error("Error submitting expense claim:", error);
+      showAlert(
+        "Error",
+        `Failed to submit expense claim: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleAddExpense = (expense: any) => {
+    setExpenseClaimData((prev) => ({
+      ...prev,
+      expenses: [...prev.expenses, expense],
+      total_sanctioned_amount:
+        prev.total_sanctioned_amount +
+        (expense.sanctioned_amount || expense.amount),
+      total_claimed_amount: prev.total_claimed_amount + expense.amount,
+      grand_total: prev.grand_total + expense.amount,
+    }));
+    setShowAddExpenseModal(false);
+  };
+
+  const handleAddTax = (tax: any) => {
+    setExpenseClaimData((prev) => ({
+      ...prev,
+      taxes: [...prev.taxes, tax],
+      grand_total: prev.grand_total + tax.amount,
+    }));
+    setShowAddTaxModal(false);
+  };
 
   const showAlert = (
     title: string,
@@ -87,106 +215,24 @@ const ExpenseClaimForm = ({ navigation }: any) => {
   };
 
   const handleBackPress = () => {
-    if (expenseItems.length > 0 || taxItems.length > 0) {
+    if (
+      expenseClaimData.expenses.length > 0 ||
+      expenseClaimData.taxes.length > 0
+    ) {
       showAlert(
         "Discard Changes",
         "Are you sure you want to discard your expense claim?",
         "Discard",
         () => {
-          setAlertVisible(false)
+          setAlertVisible(false);
+          navigation.goBack("Expense");
         },
         true,
         () => setAlertVisible(false)
       );
     } else {
-      navigation.goBack();
+      navigation.popTo("expense");
     }
-  };
-
-  const handleSubmitClaim = async () => {
-    if (expenseItems.length === 0) {
-      showAlert("Validation Error", "Please add at least one expense item");
-      return;
-    }
-
-    setIsSubmitting(true);
-
-    try {
-      const payload = {
-        doctype: "Expense Claim",
-        employee: employeeProfile?.name,
-        employee_name: employeeProfile?.employee_name,
-        department: employeeProfile?.department,
-        company: employeeProfile?.company,
-        expense_items: expenseItems.map((item) => ({
-          expense_date: formatDateForAPI(item.date),
-          expense_type: item.expenseType,
-          description: item.description,
-          amount: parseFloat(item.amount),
-          sanctioned_amount: item.sanctionedAmount
-            ? parseFloat(item.sanctionedAmount)
-            : null,
-          cost_center: item.costCenter || "",
-          project: item.project || null,
-        })),
-        taxes: taxItems.map((item) => ({
-          account_head: item.accountHead,
-          rate: item.rate ? parseFloat(item.rate) : null,
-          amount: parseFloat(item.amount),
-          description: item.description,
-          cost_center: item.costCenter || "",
-          project: item.project || null,
-        })),
-      };
-
-      const response = await fetch(
-        `${process.env.EXPO_PUBLIC_BASE_URL}/api/resource/Expense Claim/`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${accessToken}`,
-          },
-          body: JSON.stringify(payload),
-        }
-      );
-
-      const responseData = await response.json();
-
-      if (!response.ok) {
-        throw new Error(responseData.message || "Failed to submit expense claim");
-      }
-
-      setIsSubmitting(false);
-      showAlert(
-        "Success",
-        "Expense claim submitted successfully",
-        "OK",
-        () => {
-          setAlertVisible(false);
-          setExpenseItems([]);
-          setTaxItems([]);
-          navigation.goBack();
-        }
-      );
-    } catch (error) {
-      console.error("Error submitting expense claim:", error);
-      showAlert(
-        "Error",
-        `Failed to submit expense claim: ${
-          error instanceof Error ? error.message : "Unknown error"
-        }`
-      );
-      setIsSubmitting(false);
-    }
-  };
-
-  const formatDateForAPI = (date: Date) => {
-    if (!date) return "";
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, "0");
-    const day = String(date.getDate()).padStart(2, "0");
-    return `${year}-${month}-${day}`;
   };
 
   const renderActiveTab = () => {
@@ -194,31 +240,44 @@ const ExpenseClaimForm = ({ navigation }: any) => {
       case TabType.EXPENSES:
         return (
           <ExpensesTab
-            expenseItems={expenseItems}
-            taxItems={taxItems}
-            totalAmount={totalAmount}
-            totalTaxAmount={totalTaxAmount}
+            expenseItems={expenseClaimData.expenses.map((expense) => ({
+              ...expense,
+              date: new Date(expense.expense_date),
+            }))}
+            taxItems={expenseClaimData.taxes}
+            totalAmount={expenseClaimData.total_claimed_amount}
+            totalTaxAmount={expenseClaimData.taxes.reduce(
+              (sum, tax) => sum + tax.amount,
+              0
+            )}
             setShowAddExpenseModal={setShowAddExpenseModal}
             setShowAddTaxModal={setShowAddTaxModal}
           />
         );
       case TabType.ADVANCES:
-        return <AdvancesTab />;
-        case TabType.TOTALS:
-          return (
-            <TotalsTab
-              costCenter={expenseItems[0]?.costCenter || ""}
-              totalAmount={totalAmount}
-              totalSanctionedAmount={totalSanctionedAmount}
-            />
-          );
+        // return <AdvancesTab advanceItems={expenseClaimData.advances} />;
+      case TabType.TOTALS:
+        return (
+          <TotalsTab
+            costCenter={expenseClaimData.cost_center || ""}
+            totalAmount={expenseClaimData.total_claimed_amount}
+            totalSanctionedAmount={expenseClaimData.total_sanctioned_amount}
+            grandTotal={expenseClaimData.grand_total}
+          />
+        );
       default:
         return (
           <ExpensesTab
-            expenseItems={expenseItems}
-            taxItems={taxItems}
-            totalAmount={totalAmount}
-            totalTaxAmount={totalTaxAmount}
+            expenseItems={expenseClaimData.expenses.map((expense) => ({
+              ...expense,
+              date: new Date(expense.expense_date),
+            }))}
+            taxItems={expenseClaimData.taxes}
+            totalAmount={expenseClaimData.total_claimed_amount}
+            totalTaxAmount={expenseClaimData.taxes.reduce(
+              (sum, tax) => sum + tax.amount,
+              0
+            )}
             setShowAddExpenseModal={setShowAddExpenseModal}
             setShowAddTaxModal={setShowAddTaxModal}
           />
@@ -231,7 +290,14 @@ const ExpenseClaimForm = ({ navigation }: any) => {
       style={[styles.container, { backgroundColor: theme.colors.background }]}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
-      <Header onBackPress={handleBackPress} title="New Expense Claim" />
+      <Header
+        onBackPress={handleBackPress}
+        title={
+          expenseClaimData.name
+            ? `Expense Claim ${expenseClaimData.name}`
+            : "New Expense Claim"
+        }
+      />
 
       <TabBar activeTab={activeTab} setActiveTab={setActiveTab} />
 
@@ -262,7 +328,9 @@ const ExpenseClaimForm = ({ navigation }: any) => {
           {isSubmitting ? (
             <ActivityIndicator color="#FFFFFF" />
           ) : (
-            <Text style={[styles.buttonText, { color: "#FFFFFF" }]}>Save</Text>
+            <Text style={[styles.buttonText, { color: "#FFFFFF" }]}>
+              {expenseClaimData.name ? "Update" : "Submit"}
+            </Text>
           )}
         </TouchableOpacity>
       </View>
@@ -270,15 +338,14 @@ const ExpenseClaimForm = ({ navigation }: any) => {
       <AddExpenseModal
         visible={showAddExpenseModal}
         onClose={() => setShowAddExpenseModal(false)}
-        expenseItems={expenseItems}
-        setExpenseItems={setExpenseItems}
+        onAddExpense={handleAddExpense}
+        costCenter={expenseClaimData.cost_center}
       />
 
       <AddTaxModal
         visible={showAddTaxModal}
         onClose={() => setShowAddTaxModal(false)}
-        taxItems={taxItems}
-        setTaxItems={setTaxItems}
+        onAddTax={handleAddTax}
       />
 
       <AlertDialog

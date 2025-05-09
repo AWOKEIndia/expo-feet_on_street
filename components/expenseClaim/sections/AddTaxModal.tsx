@@ -10,63 +10,50 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "@/contexts/ThemeContext";
 import { styles } from "../styles";
-import { TaxItem } from "../types";
 
 interface AddTaxModalProps {
   visible: boolean;
   onClose: () => void;
-  taxItems: TaxItem[];
-  setTaxItems: (items: TaxItem[]) => void;
+  onAddTax: (tax: any) => void;
 }
 
 const AddTaxModal: React.FC<AddTaxModalProps> = ({
   visible,
   onClose,
-  taxItems,
-  setTaxItems,
+  onAddTax,
 }) => {
   const { theme } = useTheme();
-  const [taxFormData, setTaxFormData] = useState<TaxItem>({
-    accountHead: "",
-    rate: "",
-    amount: "",
-    description: "",
-    costCenter: "",
-    project: "",
-  });
+  const [accountHead, setAccountHead] = useState("");
+  const [rate, setRate] = useState("");
+  const [amount, setAmount] = useState("");
+  const [description, setDescription] = useState("");
+  const [costCenter, setCostCenter] = useState("");
+  const [project, setProject] = useState("");
 
-  const validateTaxItem = () => {
-    if (!taxFormData.accountHead) {
-      return false;
+  const handleAdd = () => {
+    if (!accountHead || !amount) {
+      return;
     }
 
-    if (!taxFormData.description) {
-      return false;
-    }
+    const tax = {
+      account_head: accountHead,
+      rate: rate ? parseFloat(rate) : undefined,
+      amount: parseFloat(amount),
+      description,
+      cost_center: costCenter,
+      project,
+    };
 
-    if (!taxFormData.amount || parseFloat(taxFormData.amount) <= 0) {
-      return false;
-    }
-
-    return true;
-  };
-
-  const handleAddTax = () => {
-    if (!validateTaxItem()) return;
-
-    const newTaxItem = { ...taxFormData };
-    setTaxItems([...taxItems, newTaxItem]);
-
-    setTaxFormData({
-      accountHead: "",
-      rate: "",
-      amount: "",
-      description: "",
-      costCenter: "",
-      project: "",
-    });
-
+    onAddTax(tax);
     onClose();
+
+    // Reset form
+    setAccountHead("");
+    setRate("");
+    setAmount("");
+    setDescription("");
+    setCostCenter("");
+    setProject("");
   };
 
   return (
@@ -116,13 +103,13 @@ const AddTaxModal: React.FC<AddTaxModalProps> = ({
                 style={[
                   styles.inputText,
                   {
-                    color: taxFormData.accountHead
+                    color: accountHead
                       ? theme.colors.textPrimary
                       : theme.colors.inputPlaceholder,
                   },
                 ]}
               >
-                {taxFormData.accountHead || "Select Account"}
+                {accountHead || "Select Account"}
               </Text>
               <Ionicons
                 name="chevron-down"
@@ -148,13 +135,8 @@ const AddTaxModal: React.FC<AddTaxModalProps> = ({
               placeholder="0.00"
               placeholderTextColor={theme.colors.inputPlaceholder}
               keyboardType="numeric"
-              value={taxFormData.rate}
-              onChangeText={(text) =>
-                setTaxFormData({
-                  ...taxFormData,
-                  rate: text.replace(/[^0-9.]/g, ""),
-                })
-              }
+              value={rate}
+              onChangeText={(text) => setRate(text.replace(/[^0-9.]/g, ""))}
             />
           </View>
 
@@ -174,13 +156,8 @@ const AddTaxModal: React.FC<AddTaxModalProps> = ({
               placeholder="0.00"
               placeholderTextColor={theme.colors.inputPlaceholder}
               keyboardType="numeric"
-              value={taxFormData.amount}
-              onChangeText={(text) =>
-                setTaxFormData({
-                  ...taxFormData,
-                  amount: text.replace(/[^0-9.]/g, ""),
-                })
-              }
+              value={amount}
+              onChangeText={(text) => setAmount(text.replace(/[^0-9.]/g, ""))}
             />
           </View>
 
@@ -199,17 +176,13 @@ const AddTaxModal: React.FC<AddTaxModalProps> = ({
               ]}
               placeholder="Enter Description"
               placeholderTextColor={theme.colors.inputPlaceholder}
-              value={taxFormData.description}
-              onChangeText={(text) =>
-                setTaxFormData({ ...taxFormData, description: text })
-              }
+              value={description}
+              onChangeText={setDescription}
             />
           </View>
 
           <View style={styles.divider}>
-            <Text
-              style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}
-            >
+            <Text style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}>
               Accounting Dimensions
             </Text>
           </View>
@@ -231,13 +204,13 @@ const AddTaxModal: React.FC<AddTaxModalProps> = ({
                 style={[
                   styles.inputText,
                   {
-                    color: taxFormData.costCenter
+                    color: costCenter
                       ? theme.colors.textPrimary
                       : theme.colors.inputPlaceholder,
                   },
                 ]}
               >
-                {taxFormData.costCenter || "Select Cost Center"}
+                {costCenter || "Select Cost Center"}
               </Text>
               <Ionicons
                 name="chevron-down"
@@ -264,13 +237,13 @@ const AddTaxModal: React.FC<AddTaxModalProps> = ({
                 style={[
                   styles.inputText,
                   {
-                    color: taxFormData.project
+                    color: project
                       ? theme.colors.textPrimary
                       : theme.colors.inputPlaceholder,
                   },
                 ]}
               >
-                {taxFormData.project || "Select Project"}
+                {project || "Select Project"}
               </Text>
               <Ionicons
                 name="chevron-down"
@@ -287,7 +260,7 @@ const AddTaxModal: React.FC<AddTaxModalProps> = ({
                 backgroundColor: theme.colors.buttonPrimary,
               },
             ]}
-            onPress={handleAddTax}
+            onPress={handleAdd}
           >
             <Ionicons name="add-circle-outline" size={20} color="#FFFFFF" />
             <Text style={[styles.addExpenseText, { color: "#FFFFFF" }]}>

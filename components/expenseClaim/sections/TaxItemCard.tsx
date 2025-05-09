@@ -30,7 +30,7 @@ const TaxItemCard: React.FC<TaxItemCardProps> = ({ item, index }) => {
             { color: theme.colors.textPrimary },
           ]}
         >
-          {item.accountHead}
+          {item.account_head}
         </Text>
         <TouchableOpacity>
           <Ionicons
@@ -55,7 +55,7 @@ const TaxItemCard: React.FC<TaxItemCardProps> = ({ item, index }) => {
             { color: theme.colors.textPrimary },
           ]}
         >
-          ₹ {parseFloat(item.amount).toFixed(0)}
+          ₹ {item.amount.toFixed(0)}
         </Text>
       </View>
     </View>
