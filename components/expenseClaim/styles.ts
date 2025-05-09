@@ -45,10 +45,10 @@ export const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: "600",
-    marginVertical: 12,
+    marginVertical: 6,
   },
   fieldContainer: {
-    marginBottom: 16,
+    marginBottom: 12,
   },
   label: {
     marginTop: 10,
@@ -195,7 +195,7 @@ export const styles = StyleSheet.create({
     borderRadius: 8,
     borderStyle: "dashed",
     borderColor: "#E5E5E5",
-    marginVertical: 8,
+    marginVertical: 16,
   },
   uploadContainer: {
     height: 120,
@@ -209,5 +209,43 @@ export const styles = StyleSheet.create({
   loadingContainer: {
     flexDirection: "row",
     alignItems: "center",
+  },
+  totalsContainer: {
+    marginBottom: 16,
+  },
+  totalItem: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  totalLabel: {
+    fontSize: 16,
+  },
+  totalValue: {
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  grandTotal: {
+    fontSize: 18,
+    fontWeight: "bold",
+    marginTop: 8,
+  },
+  totalInput: {
+    height: 48,
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    justifyContent: "center",
+    marginTop: 4,
+  },
+  grandTotalInput: {
+    height: 48,
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    justifyContent: "center",
+    marginTop: 4,
+    borderColor: "#4CAF50",
   },
 });

@@ -64,6 +64,11 @@ const ExpenseClaimForm = ({ navigation }: any) => {
     setTotalTaxAmount(taxTotal);
   }, [expenseItems, taxItems]);
 
+  const totalSanctionedAmount = expenseItems.reduce(
+    (sum, item) => sum + parseFloat(item.sanctionedAmount || item.amount || "0"),
+    0
+  );
+
   const showAlert = (
     title: string,
     message: string,
@@ -88,8 +93,7 @@ const ExpenseClaimForm = ({ navigation }: any) => {
         "Are you sure you want to discard your expense claim?",
         "Discard",
         () => {
-          setAlertVisible(false);
-          navigation.goBack();
+          setAlertVisible(false)
         },
         true,
         () => setAlertVisible(false)
@@ -200,8 +204,14 @@ const ExpenseClaimForm = ({ navigation }: any) => {
         );
       case TabType.ADVANCES:
         return <AdvancesTab />;
-      case TabType.TOTALS:
-        return <TotalsTab costCenter={expenseItems[0]?.costCenter || ""} />;
+        case TabType.TOTALS:
+          return (
+            <TotalsTab
+              costCenter={expenseItems[0]?.costCenter || ""}
+              totalAmount={totalAmount}
+              totalSanctionedAmount={totalSanctionedAmount}
+            />
+          );
       default:
         return (
           <ExpensesTab

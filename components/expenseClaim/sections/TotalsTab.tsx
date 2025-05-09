@@ -6,9 +6,15 @@ import { styles } from "../styles";
 
 interface TotalsTabProps {
   costCenter: string;
+  totalAmount: number;
+  totalSanctionedAmount: number;
 }
 
-const TotalsTab: React.FC<TotalsTabProps> = ({ costCenter }) => {
+const TotalsTab: React.FC<TotalsTabProps> = ({
+  costCenter,
+  totalAmount,
+  totalSanctionedAmount
+}) => {
   const { theme } = useTheme();
 
   const formatDate = (date: Date) => {
@@ -21,19 +27,72 @@ const TotalsTab: React.FC<TotalsTabProps> = ({ costCenter }) => {
 
   return (
     <ScrollView style={styles.tabContent}>
-      <Text
-        style={[
-          styles.sectionTitle,
-          { color: theme.colors.textPrimary, marginTop: 16 },
-        ]}
-      >
-        Totals
-      </Text>
-
+      {/* Totals Section */}
       <View style={styles.sectionDivider}>
-        <Text
-          style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}
-        >
+        <Text style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}>
+          Totals
+        </Text>
+      </View>
+
+      <View style={styles.fieldContainer}>
+        <Text style={[styles.label, { color: theme.colors.textSecondary }]}>
+          Total Sanctioned Amount
+        </Text>
+        <View style={[
+          styles.input,
+          {
+            backgroundColor: theme.colors.inputBackground,
+            borderColor: theme.colors.inputBorder,
+          }
+        ]}>
+          <Text style={[styles.inputText, { color: theme.colors.textPrimary }]}>
+            ₹ {totalSanctionedAmount.toFixed(2)}
+          </Text>
+        </View>
+      </View>
+
+      <View style={styles.fieldContainer}>
+        <Text style={[styles.label, { color: theme.colors.textSecondary }]}>
+          Total Claimed Amount
+        </Text>
+        <View style={[
+          styles.input,
+          {
+            backgroundColor: theme.colors.inputBackground,
+            borderColor: theme.colors.inputBorder,
+          }
+        ]}>
+          <Text style={[styles.inputText, { color: theme.colors.textPrimary }]}>
+            ₹ {totalAmount.toFixed(2)}
+          </Text>
+        </View>
+      </View>
+
+      <View style={styles.fieldContainer}>
+        <Text style={[styles.label, { color: theme.colors.textSecondary }]}>
+          Grand Total
+        </Text>
+        <View style={[
+          styles.input,
+          {
+            backgroundColor: theme.colors.inputBackground,
+            borderColor: theme.colors.inputBorder,
+          }
+        ]}>
+          <Text style={[styles.inputText, {
+            color: theme.colors.textPrimary,
+            fontWeight: "bold",
+            fontSize: 16
+          }]}>
+            ₹ {totalAmount.toFixed(2)}
+          </Text>
+        </View>
+      </View>
+
+
+      {/* Accounting Details Section */}
+      <View style={styles.sectionDivider}>
+        <Text style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}>
           Accounting Details
         </Text>
       </View>
@@ -51,9 +110,7 @@ const TotalsTab: React.FC<TotalsTabProps> = ({ costCenter }) => {
             },
           ]}
         >
-          <Text
-            style={[styles.inputText, { color: theme.colors.textPrimary }]}
-          >
+          <Text style={[styles.inputText, { color: theme.colors.textPrimary }]}>
             {formatDate(new Date())}
           </Text>
         </View>
@@ -88,10 +145,9 @@ const TotalsTab: React.FC<TotalsTabProps> = ({ costCenter }) => {
         </TouchableOpacity>
       </View>
 
+      {/* Accounting Dimensions Section */}
       <View style={styles.sectionDivider}>
-        <Text
-          style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}
-        >
+        <Text style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}>
           Accounting Dimensions
         </Text>
       </View>
