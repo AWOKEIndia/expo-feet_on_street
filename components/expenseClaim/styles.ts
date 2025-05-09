@@ -51,6 +51,7 @@ export const styles = StyleSheet.create({
     marginBottom: 16,
   },
   label: {
+    marginTop: 10,
     marginBottom: 8,
     fontSize: 14,
   },
@@ -183,7 +184,7 @@ export const styles = StyleSheet.create({
     marginBottom: 8,
   },
   divider: {
-    marginTop: 16,
+    marginTop: 4,
     marginBottom: 8,
   },
   emptyContainer: {
