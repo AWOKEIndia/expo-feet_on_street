@@ -40,34 +40,14 @@ export default function ExpenseClaimScreen() {
   React.useEffect(() => {
     const timer = setTimeout(() => {
       setExpenses([
-        {
-          id: "EXP-2023-001",
-          date: "15/06/2023",
-          purpose: "Client meeting travel expenses",
-          amount: 1250,
-          status: "Approved"
-        },
-        {
-          id: "EXP-2023-002",
-          date: "22/06/2023",
-          purpose: "Team lunch",
-          amount: 3500,
-          status: "Pending"
-        },
-        {
-          id: "EXP-2023-003",
-          date: "05/07/2023",
-          purpose: "Office supplies",
-          amount: 750,
-          status: "Rejected"
-        }
+
       ]);
 
       setExpenseSummary({
-        total: 5500,
-        pending: 3500,
-        approved: 1250,
-        rejected: 750,
+        total: 0,
+        pending: 0,
+        approved: 0,
+        rejected: 0,
       });
 
       setAdvanceBalance(0);
