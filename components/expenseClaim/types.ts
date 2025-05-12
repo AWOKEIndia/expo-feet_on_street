@@ -40,7 +40,7 @@ export interface ExpensesTabProps {
 }
 
 export interface AdvancesTabProps {
-  advanceItems: AdvanceItem[];
+  advanceItems: any[];
 }
 
 export interface TotalsTabProps {

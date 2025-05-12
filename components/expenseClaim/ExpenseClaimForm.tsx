@@ -255,7 +255,7 @@ const ExpenseClaimForm = ({ navigation }: any) => {
           />
         );
       case TabType.ADVANCES:
-        // return <AdvancesTab advanceItems={expenseClaimData.advances} />;
+        return <AdvancesTab advanceItems={expenseClaimData.advances} />;
       case TabType.TOTALS:
         return (
           <TotalsTab
