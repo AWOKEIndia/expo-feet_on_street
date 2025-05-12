@@ -3,11 +3,8 @@ import { View, Text, TouchableOpacity, ScrollView } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "@/contexts/ThemeContext";
 import { styles } from "../styles";
-import ExpenseItemCard from "./ExpenseItemCard";
-import TaxItemCard from "./TaxItemCard";
 import AttachmentsSection from "./AttachmentSection";
-import { MediaItem } from "@/components/expenseClaim/types";
-
+import { MediaItem, ExpenseItem, TaxItem } from "@/components/expenseClaim/types";
 import { ExpensesTabProps } from "../types";
 
 const ExpensesTab: React.FC<ExpensesTabProps> = ({
@@ -20,6 +17,68 @@ const ExpensesTab: React.FC<ExpensesTabProps> = ({
 }) => {
   const { theme } = useTheme();
   const [attachments, setAttachments] = useState<MediaItem[]>([]);
+
+  const formatDate = (date: Date) => {
+    if (!date) return "";
+    const day = String(date.getDate()).padStart(2, "0");
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const year = date.getFullYear();
+    return `${day}/${month}/${year}`;
+  };
+
+  const renderItemCard = (item: ExpenseItem | TaxItem, isTaxItem: boolean) => {
+    return (
+      <View
+        style={[
+          styles.expenseItemCard,
+          {
+            backgroundColor: theme.colors.surfacePrimary,
+            borderColor: theme.colors.border,
+          },
+        ]}
+      >
+        <View style={styles.expenseItemHeader}>
+          <Text
+            style={[
+              styles.expenseItemType,
+              { color: theme.colors.textPrimary },
+            ]}
+          >
+            {isTaxItem ? (item as TaxItem).account_head : (item as ExpenseItem).expense_type}
+          </Text>
+          <TouchableOpacity>
+            <Ionicons
+              name="chevron-forward"
+              size={20}
+              color={theme.colors.iconSecondary}
+            />
+          </TouchableOpacity>
+        </View>
+        <Text
+          style={[
+            styles.expenseItemDate,
+            { color: theme.colors.textSecondary },
+          ]}
+        >
+          {isTaxItem
+            ? `Rate: ${(item as TaxItem).rate || "0"}% · ${(item as TaxItem).description}`
+            : `Sanctioned: ₹ ${(item as ExpenseItem).sanctioned_amount
+                ? ((item as ExpenseItem).sanctioned_amount ?? 0).toFixed(0)
+                : (item as ExpenseItem).amount.toFixed(0)} · ${formatDate((item as ExpenseItem).date)}`}
+        </Text>
+        <View style={styles.expenseItemAmount}>
+          <Text
+            style={[
+              styles.expenseItemAmountText,
+              { color: theme.colors.textPrimary },
+            ]}
+          >
+            ₹ {item.amount.toFixed(0)}
+          </Text>
+        </View>
+      </View>
+    );
+  };
 
   return (
     <ScrollView style={styles.tabContent}>
@@ -77,7 +136,9 @@ const ExpensesTab: React.FC<ExpensesTabProps> = ({
         </View>
       ) : (
         expenseItems.map((item, index) => (
-          <ExpenseItemCard key={index} item={item} index={index} />
+          <View key={index}>
+            {renderItemCard(item, false)}
+          </View>
         ))
       )}
 
@@ -106,11 +167,13 @@ const ExpensesTab: React.FC<ExpensesTabProps> = ({
         </View>
       ) : (
         taxItems.map((item, index) => (
-          <TaxItemCard key={index} item={item} index={index} />
+          <View key={index}>
+            {renderItemCard(item, true)}
+          </View>
         ))
       )}
 
-       <AttachmentsSection
+      <AttachmentsSection
         attachments={attachments}
         setAttachments={setAttachments}
         styles={styles}
