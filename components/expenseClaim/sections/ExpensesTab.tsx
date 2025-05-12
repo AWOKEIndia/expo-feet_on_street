@@ -1,11 +1,12 @@
-import React from "react";
+import React, { useState } from "react";
 import { View, Text, TouchableOpacity, ScrollView } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "@/contexts/ThemeContext";
 import { styles } from "../styles";
 import ExpenseItemCard from "./ExpenseItemCard";
 import TaxItemCard from "./TaxItemCard";
-import { ExpenseItem, TaxItem } from "../types";
+import AttachmentsSection from "./AttachmentSection";
+import { MediaItem } from "@/components/expenseClaim/types";
 
 import { ExpensesTabProps } from "../types";
 
@@ -18,6 +19,7 @@ const ExpensesTab: React.FC<ExpensesTabProps> = ({
   setShowAddTaxModal,
 }) => {
   const { theme } = useTheme();
+  const [attachments, setAttachments] = useState<MediaItem[]>([]);
 
   return (
     <ScrollView style={styles.tabContent}>
@@ -108,23 +110,11 @@ const ExpensesTab: React.FC<ExpensesTabProps> = ({
         ))
       )}
 
-      <View style={styles.sectionDivider}>
-        <Text style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}>
-          Attachments
-        </Text>
-      </View>
-
-      <TouchableOpacity
-        style={[
-          styles.uploadContainer,
-          { borderColor: theme.colors.border }
-        ]}
-      >
-        <Ionicons name="arrow-up" size={24} color={theme.colors.iconSecondary} />
-        <Text style={{ color: theme.colors.textSecondary, marginTop: 8 }}>
-          Upload images or documents
-        </Text>
-      </TouchableOpacity>
+       <AttachmentsSection
+        attachments={attachments}
+        setAttachments={setAttachments}
+        styles={styles}
+      />
     </ScrollView>
   );
 };

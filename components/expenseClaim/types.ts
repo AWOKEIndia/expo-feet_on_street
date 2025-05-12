@@ -1,4 +1,3 @@
-// types.ts
 export enum TabType {
   EXPENSES = "Expenses",
   ADVANCES = "Advances",
@@ -26,7 +25,6 @@ export interface TaxItem {
 }
 
 export interface AdvanceItem {
-  // Define your advance item properties here
   [key: string]: any;
 }
 
@@ -48,4 +46,24 @@ export interface TotalsTabProps {
   totalAmount: number;
   totalSanctionedAmount: number;
   grandTotal: number;
+}
+export interface MediaItem {
+  uri: string;
+  name: string;
+  type: string;
+  size: number;
+}
+export interface MediaPickerProps {
+  items: MediaItem[];
+  onItemsChange: (items: MediaItem[]) => void;
+  maxFileSize?: number;
+  maxFiles?: number;
+  allowedTypes?: string[];
+  containerStyle?: object;
+  uploadText?: string;
+  processingText?: string;
+  fileSizeExceededMessage?: string;
+  maxFilesExceededMessage?: string;
+  uploadErrorMessage?: string;
+  uploadIcon?: string;
 }
