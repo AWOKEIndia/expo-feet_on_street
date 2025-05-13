@@ -346,6 +346,7 @@ const ExpenseClaimForm = ({ navigation }: any) => {
         visible={showAddTaxModal}
         onClose={() => setShowAddTaxModal(false)}
         onAddTax={handleAddTax}
+        accessToken={accessToken as string}
       />
 
       <AlertDialog

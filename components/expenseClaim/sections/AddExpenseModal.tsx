@@ -15,6 +15,7 @@ import { useTheme } from "@/contexts/ThemeContext";
 import { styles } from "../styles";
 import useExpenseClaimTypes from "@/hooks/useExpenseClaimTypes";
 import { useAuthContext } from "@/contexts/AuthContext";
+import useAccountingData from "@/hooks/useAccountingData";
 
 interface AddExpenseModalProps {
   visible: boolean;
@@ -38,7 +39,17 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
   const [amount, setAmount] = useState("");
   const [sanctionedAmount, setSanctionedAmount] = useState("");
   const [showExpenseTypeDropdown, setShowExpenseTypeDropdown] = useState(false);
+  const [showCostCenterDropdown, setShowCostCenterDropdown] = useState(false);
+  const [selectedCostCenter, setSelectedCostCenter] = useState(costCenter || "");
+
   const { data: expenseClaimTypes, loading: loadingExpenseTypes } = useExpenseClaimTypes(accessToken as string);
+
+  // Use the accounting data hook to get cost centers
+  const {
+    costCenters,
+    loading: loadingCostCenters,
+    error: costCentersError
+  } = useAccountingData(accessToken as string);
 
   const formatDate = (date: Date) => {
     if (!date) return "";
@@ -69,7 +80,7 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
       description,
       amount: parseFloat(amount),
       sanctioned_amount: sanctionedAmount ? parseFloat(sanctionedAmount) : parseFloat(amount),
-      cost_center: costCenter,
+      cost_center: selectedCostCenter,
     };
 
     onAddExpense(expense);
@@ -81,6 +92,7 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
     setDescription("");
     setAmount("");
     setSanctionedAmount("");
+    setSelectedCostCenter(costCenter || "");
   };
 
   return (
@@ -156,7 +168,10 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
                   borderColor: theme.colors.inputBorder,
                 },
               ]}
-              onPress={() => setShowExpenseTypeDropdown(!showExpenseTypeDropdown)}
+              onPress={() => {
+                setShowExpenseTypeDropdown(!showExpenseTypeDropdown);
+                setShowCostCenterDropdown(false);
+              }}
               disabled={loadingExpenseTypes}
             >
               {loadingExpenseTypes ? (
@@ -312,21 +327,85 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
                   borderColor: theme.colors.inputBorder,
                 },
               ]}
-              disabled={true}
+              onPress={() => {
+                setShowCostCenterDropdown(!showCostCenterDropdown);
+                setShowExpenseTypeDropdown(false);
+              }}
+              disabled={loadingCostCenters}
             >
-              <Text
-                style={[styles.inputText, { color: theme.colors.textPrimary }]}
-                numberOfLines={1}
-                ellipsizeMode="tail"
-              >
-                {costCenter || "Not specified"}
-              </Text>
-              <Ionicons
-                name="chevron-down"
-                size={20}
-                color={theme.colors.iconSecondary}
-              />
+              {loadingCostCenters ? (
+                <View style={styles.loadingContainer}>
+                  <ActivityIndicator size="small" color={theme.colors.iconPrimary} />
+                  <Text style={[styles.inputText, { color: theme.colors.textSecondary, marginLeft: 8 }]}>
+                    Loading...
+                  </Text>
+                </View>
+              ) : (
+                <>
+                  <Text
+                    style={[
+                      styles.inputText,
+                      {
+                        color: selectedCostCenter
+                          ? theme.colors.textPrimary
+                          : theme.colors.inputPlaceholder,
+                      },
+                    ]}
+                    numberOfLines={1}
+                    ellipsizeMode="tail"
+                  >
+                    {selectedCostCenter || "Select Cost Center"}
+                  </Text>
+                  <Ionicons
+                    name="chevron-down"
+                    size={20}
+                    color={theme.colors.iconSecondary}
+                  />
+                </>
+              )}
             </TouchableOpacity>
+
+            {showCostCenterDropdown && costCenters && costCenters.length > 0 && (
+              <View
+                style={[
+                  styles.dropdown,
+                  {
+                    backgroundColor: theme.colors.surfacePrimary,
+                    borderColor: theme.colors.border,
+                  },
+                ]}
+              >
+                {costCenters.map((center, index) => (
+                  <TouchableOpacity
+                    key={index}
+                    style={[
+                      styles.dropdownItem,
+                      {
+                        borderBottomColor:
+                          index < costCenters.length - 1
+                            ? theme.colors.divider
+                            : "transparent",
+                        borderBottomWidth:
+                          index < costCenters.length - 1 ? 1 : 0,
+                      },
+                    ]}
+                    onPress={() => {
+                      setSelectedCostCenter(center.name);
+                      setShowCostCenterDropdown(false);
+                    }}
+                  >
+                    <Text
+                      style={[
+                        styles.dropdownItemText,
+                        { color: theme.colors.textPrimary },
+                      ]}
+                    >
+                      {center.name}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
           </View>
 
           <TouchableOpacity

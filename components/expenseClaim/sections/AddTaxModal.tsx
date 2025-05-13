@@ -6,21 +6,27 @@ import {
   ScrollView,
   TouchableOpacity,
   TextInput,
+  ActivityIndicator,
+  StyleSheet,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "@/contexts/ThemeContext";
-import { styles } from "../styles";
+import useAccountingData from "@/hooks/useAccountingData";
 
 interface AddTaxModalProps {
   visible: boolean;
   onClose: () => void;
   onAddTax: (tax: any) => void;
+  accessToken: string;
+  companyId?: string;
 }
 
 const AddTaxModal: React.FC<AddTaxModalProps> = ({
   visible,
   onClose,
   onAddTax,
+  accessToken,
+  companyId,
 }) => {
   const { theme } = useTheme();
   const [accountHead, setAccountHead] = useState("");
@@ -29,6 +35,21 @@ const AddTaxModal: React.FC<AddTaxModalProps> = ({
   const [description, setDescription] = useState("");
   const [costCenter, setCostCenter] = useState("");
   const [project, setProject] = useState("");
+
+  // Dropdown state
+  const [showAccountHeadDropdown, setShowAccountHeadDropdown] = useState(false);
+  const [showCostCenterDropdown, setShowCostCenterDropdown] = useState(false);
+
+  // Use the accounting data hook
+  const {
+    accounts,
+    costCenters,
+    loading,
+    error,
+    refresh,
+    selectAccountByName,
+    selectCostCenterByName,
+  } = useAccountingData(accessToken, companyId);
 
   const handleAdd = () => {
     if (!accountHead || !amount) {
@@ -54,6 +75,18 @@ const AddTaxModal: React.FC<AddTaxModalProps> = ({
     setDescription("");
     setCostCenter("");
     setProject("");
+  };
+
+  const selectAccount = (name: string) => {
+    setAccountHead(name);
+    selectAccountByName(name);
+    setShowAccountHeadDropdown(false);
+  };
+
+  const selectCostCenterItem = (name: string) => {
+    setCostCenter(name);
+    selectCostCenterByName(name);
+    setShowCostCenterDropdown(false);
   };
 
   return (
@@ -85,7 +118,11 @@ const AddTaxModal: React.FC<AddTaxModalProps> = ({
           </Text>
         </View>
 
-        <ScrollView style={styles.tabContent}>
+        <ScrollView
+          style={styles.tabContent}
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+        >
           <View style={styles.fieldContainer}>
             <Text style={[styles.label, { color: theme.colors.textSecondary }]}>
               Account Head <Text style={{ color: theme.statusColors.error }}>*</Text>
@@ -98,25 +135,85 @@ const AddTaxModal: React.FC<AddTaxModalProps> = ({
                   borderColor: theme.colors.inputBorder,
                 },
               ]}
+              onPress={() => {
+                setShowAccountHeadDropdown(!showAccountHeadDropdown);
+                setShowCostCenterDropdown(false);
+                if (!accounts.length) refresh();
+              }}
+              disabled={loading}
             >
-              <Text
+              {loading ? (
+                <View style={styles.loadingContainer}>
+                  <ActivityIndicator size="small" color={theme.colors.iconPrimary} />
+                  <Text style={[styles.inputText, { color: theme.colors.textSecondary, marginLeft: 8 }]}>
+                    Loading...
+                  </Text>
+                </View>
+              ) : (
+                <>
+                  <Text
+                    style={[
+                      styles.inputText,
+                      {
+                        color: accountHead
+                          ? theme.colors.textPrimary
+                          : theme.colors.inputPlaceholder,
+                      },
+                    ]}
+                    numberOfLines={1}
+                  >
+                    {accountHead || "Select Account"}
+                  </Text>
+                  <Ionicons
+                    name={showAccountHeadDropdown ? "chevron-up" : "chevron-down"}
+                    size={20}
+                    color={theme.colors.iconSecondary}
+                  />
+                </>
+              )}
+            </TouchableOpacity>
+
+            {showAccountHeadDropdown && (
+              <View
                 style={[
-                  styles.inputText,
+                  styles.dropdown,
                   {
-                    color: accountHead
-                      ? theme.colors.textPrimary
-                      : theme.colors.inputPlaceholder,
+                    backgroundColor: theme.colors.surfacePrimary,
+                    borderColor: theme.colors.border,
                   },
                 ]}
               >
-                {accountHead || "Select Account"}
-              </Text>
-              <Ionicons
-                name="chevron-down"
-                size={20}
-                color={theme.colors.iconSecondary}
-              />
-            </TouchableOpacity>
+                <ScrollView
+                  style={styles.dropdownScroll}
+                  nestedScrollEnabled={true}
+                >
+                  {accounts.map((account, index) => (
+                    <TouchableOpacity
+                      key={index}
+                      style={[
+                        styles.dropdownItem,
+                        {
+                          borderBottomColor:
+                            index < accounts.length - 1
+                              ? theme.colors.divider
+                              : "transparent",
+                        },
+                      ]}
+                      onPress={() => selectAccount(account.name)}
+                    >
+                      <Text
+                        style={[
+                          styles.dropdownItemText,
+                          { color: theme.colors.textPrimary },
+                        ]}
+                      >
+                        {account.name}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
+            )}
           </View>
 
           <View style={styles.fieldContainer}>
@@ -163,7 +260,7 @@ const AddTaxModal: React.FC<AddTaxModalProps> = ({
 
           <View style={styles.fieldContainer}>
             <Text style={[styles.label, { color: theme.colors.textSecondary }]}>
-              Description <Text style={{ color: theme.statusColors.error }}>*</Text>
+              Description
             </Text>
             <TextInput
               style={[
@@ -199,25 +296,85 @@ const AddTaxModal: React.FC<AddTaxModalProps> = ({
                   borderColor: theme.colors.inputBorder,
                 },
               ]}
+              onPress={() => {
+                setShowCostCenterDropdown(!showCostCenterDropdown);
+                setShowAccountHeadDropdown(false);
+                if (!costCenters.length) refresh();
+              }}
+              disabled={loading}
             >
-              <Text
+              {loading ? (
+                <View style={styles.loadingContainer}>
+                  <ActivityIndicator size="small" color={theme.colors.iconPrimary} />
+                  <Text style={[styles.inputText, { color: theme.colors.textSecondary, marginLeft: 8 }]}>
+                    Loading...
+                  </Text>
+                </View>
+              ) : (
+                <>
+                  <Text
+                    style={[
+                      styles.inputText,
+                      {
+                        color: costCenter
+                          ? theme.colors.textPrimary
+                          : theme.colors.inputPlaceholder,
+                      },
+                    ]}
+                    numberOfLines={1}
+                  >
+                    {costCenter || "Select Cost Center"}
+                  </Text>
+                  <Ionicons
+                    name={showCostCenterDropdown ? "chevron-up" : "chevron-down"}
+                    size={20}
+                    color={theme.colors.iconSecondary}
+                  />
+                </>
+              )}
+            </TouchableOpacity>
+
+            {showCostCenterDropdown && (
+              <View
                 style={[
-                  styles.inputText,
+                  styles.dropdown,
                   {
-                    color: costCenter
-                      ? theme.colors.textPrimary
-                      : theme.colors.inputPlaceholder,
+                    backgroundColor: theme.colors.surfacePrimary,
+                    borderColor: theme.colors.border,
                   },
                 ]}
               >
-                {costCenter || "Select Cost Center"}
-              </Text>
-              <Ionicons
-                name="chevron-down"
-                size={20}
-                color={theme.colors.iconSecondary}
-              />
-            </TouchableOpacity>
+                <ScrollView
+                  style={styles.dropdownScroll}
+                  nestedScrollEnabled={true}
+                >
+                  {costCenters.map((center, index) => (
+                    <TouchableOpacity
+                      key={index}
+                      style={[
+                        styles.dropdownItem,
+                        {
+                          borderBottomColor:
+                            index < costCenters.length - 1
+                              ? theme.colors.divider
+                              : "transparent",
+                        },
+                      ]}
+                      onPress={() => selectCostCenterItem(center.name)}
+                    >
+                      <Text
+                        style={[
+                          styles.dropdownItemText,
+                          { color: theme.colors.textPrimary },
+                        ]}
+                      >
+                        {center.name}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
+            )}
           </View>
 
           <View style={styles.fieldContainer}>
@@ -232,6 +389,7 @@ const AddTaxModal: React.FC<AddTaxModalProps> = ({
                   borderColor: theme.colors.inputBorder,
                 },
               ]}
+              disabled={true}
             >
               <Text
                 style={[
@@ -272,5 +430,107 @@ const AddTaxModal: React.FC<AddTaxModalProps> = ({
     </Modal>
   );
 };
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+  },
+  backButton: {
+    marginRight: 16,
+  },
+  title: {
+    fontSize: 20,
+    fontWeight: "600",
+  },
+  tabContent: {
+    flex: 1,
+    paddingHorizontal: 16,
+  },
+  scrollContent: {
+    paddingBottom: 24,
+  },
+  fieldContainer: {
+    marginBottom: 16,
+    zIndex: 1,
+  },
+  label: {
+    marginTop: 10,
+    marginBottom: 8,
+    fontSize: 14,
+  },
+  input: {
+    height: 48,
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    justifyContent: "center",
+  },
+  inputText: {
+    fontSize: 16,
+    flex: 1,
+  },
+  dropdownContainer: {
+    height: 48,
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  dropdown: {
+    position: "relative",
+    borderWidth: 1,
+    borderRadius: 8,
+    maxHeight: 200,
+    marginTop: 4,
+    overflow: "hidden",
+  },
+  dropdownScroll: {
+    maxHeight: 200,
+  },
+  dropdownItem: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+  },
+  dropdownItemText: {
+    fontSize: 16,
+  },
+  addExpenseButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    height: 48,
+    borderRadius: 8,
+    marginVertical: 24,
+  },
+  addExpenseText: {
+    fontSize: 16,
+    fontWeight: "600",
+    marginLeft: 8,
+  },
+  divider: {
+    marginTop: 4,
+    marginBottom: 8,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+    marginVertical: 6,
+  },
+  loadingContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+  },
+});
 
 export default AddTaxModal;
