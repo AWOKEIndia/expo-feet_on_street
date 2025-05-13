@@ -12,6 +12,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "@/contexts/ThemeContext";
 import useAccountingData from "@/hooks/useAccountingData";
+import { styles } from "../styles";
 
 interface AddTaxModalProps {
   visible: boolean;
@@ -430,107 +431,5 @@ const AddTaxModal: React.FC<AddTaxModalProps> = ({
     </Modal>
   );
 };
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 16,
-    paddingHorizontal: 16,
-    borderBottomWidth: 1,
-  },
-  backButton: {
-    marginRight: 16,
-  },
-  title: {
-    fontSize: 20,
-    fontWeight: "600",
-  },
-  tabContent: {
-    flex: 1,
-    paddingHorizontal: 16,
-  },
-  scrollContent: {
-    paddingBottom: 24,
-  },
-  fieldContainer: {
-    marginBottom: 16,
-    zIndex: 1,
-  },
-  label: {
-    marginTop: 10,
-    marginBottom: 8,
-    fontSize: 14,
-  },
-  input: {
-    height: 48,
-    borderWidth: 1,
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    justifyContent: "center",
-  },
-  inputText: {
-    fontSize: 16,
-    flex: 1,
-  },
-  dropdownContainer: {
-    height: 48,
-    borderWidth: 1,
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  dropdown: {
-    position: "relative",
-    borderWidth: 1,
-    borderRadius: 8,
-    maxHeight: 200,
-    marginTop: 4,
-    overflow: "hidden",
-  },
-  dropdownScroll: {
-    maxHeight: 200,
-  },
-  dropdownItem: {
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderBottomWidth: 1,
-  },
-  dropdownItemText: {
-    fontSize: 16,
-  },
-  addExpenseButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    height: 48,
-    borderRadius: 8,
-    marginVertical: 24,
-  },
-  addExpenseText: {
-    fontSize: 16,
-    fontWeight: "600",
-    marginLeft: 8,
-  },
-  divider: {
-    marginTop: 4,
-    marginBottom: 8,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    marginVertical: 6,
-  },
-  loadingContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    flex: 1,
-  },
-});
 
 export default AddTaxModal;

@@ -279,4 +279,10 @@ export const styles = StyleSheet.create({
     marginTop: 100,
     elevation: 4,
   },
+  dropdownScroll: {
+    maxHeight: 200,
+  },
+  scrollContent: {
+    paddingBottom: 24,
+  },
 });
