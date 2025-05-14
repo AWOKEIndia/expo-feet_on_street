@@ -1,11 +1,13 @@
 import ExpenseClaimForm from "@/components/expenseClaim/ExpenseClaimForm";
+import { useAuthContext } from "@/contexts/AuthContext";
 import { useTheme } from "@/contexts/ThemeContext";
 import { Ionicons } from "@expo/vector-icons";
 import { StatusBar } from "expo-status-bar";
-import React, { useState } from "react";
+import React, { useCallback, useState } from "react";
 import {
   ActivityIndicator,
   Modal,
+  RefreshControl,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -14,77 +16,173 @@ import {
   View
 } from "react-native";
 
-export default function ExpenseClaimScreen() {
-  const { theme, isDark } = useTheme();
-  const [isLoading, setIsLoading] = useState(true);
-  const [showFormModal, setShowFormModal] = useState(false);
+export interface ExpenseClaim {
+  name: string;
+  employee: string;
+  employee_name: string;
+  department: string;
+  company: string;
+  approval_status: string;
+  total_sanctioned_amount: number;
+  grand_total: number;
+  posting_date: string;
+  status: string;
+  expenses: ExpenseItem[];
+}
 
-  type Expense = {
-    id: string;
-    date: string;
-    purpose: string;
-    amount: number;
-    status: string;
+export interface ExpenseItem {
+  expense_date: string;
+  expense_type: string;
+  amount: number;
+  sanctioned_amount: number;
+  purpose?: string;
+}
+
+const useExpenseClaims = () => {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<Error | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const [expenseClaims, setExpenseClaims] = useState<ExpenseClaim[]>([]);
+  const [selectedExpense, setSelectedExpense] = useState<ExpenseClaim | null>(null);
+  const { accessToken, employeeProfile } = useAuthContext();
+
+  const fetchExpenseClaimDetails = async (claimId: string) => {
+    try {
+      const response = await fetch(
+        `${process.env.EXPO_PUBLIC_BASE_URL}/api/resource/Expense Claim/${claimId}`,
+        {
+          method: "GET",
+          headers: {
+            Accept: "application/json",
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${accessToken}`,
+          },
+        }
+      );
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`HTTP error! Status: ${response.status}. ${errorText}`);
+      }
+
+      const result = await response.json();
+      console.log(`Details for expense claim ${claimId} retrieved`);
+
+      if (result?.data) {
+        return {
+          ...result.data,
+          status: result.data.approval_status,
+        };
+      }
+      return null;
+    } catch (error) {
+      console.error(`Error fetching details for expense claim ${claimId}:`, error);
+      return null;
+    }
   };
 
-  const [expenses, setExpenses] = useState<Expense[]>([]);
-  const [expenseSummary, setExpenseSummary] = useState({
-    total: 0,
-    pending: 0,
-    approved: 0,
-    rejected: 0,
-  });
-  const [advanceBalance, setAdvanceBalance] = useState(0);
+  const fetchExpenseClaims = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
 
-  // Simulate loading data
-  React.useEffect(() => {
-    const timer = setTimeout(() => {
-      setExpenses([
+      const response = await fetch(
+        `${process.env.EXPO_PUBLIC_BASE_URL}/api/resource/Expense Claim/`,
         {
-          id: "EXP-2023-001",
-          date: "15/06/2023",
-          purpose: "Client meeting travel expenses",
-          amount: 1250,
-          status: "Approved"
-        },
-        {
-          id: "EXP-2023-002",
-          date: "22/06/2023",
-          purpose: "Team lunch",
-          amount: 3500,
-          status: "Pending"
-        },
-        {
-          id: "EXP-2023-003",
-          date: "05/07/2023",
-          purpose: "Office supplies",
-          amount: 750,
-          status: "Rejected"
+          method: "GET",
+          headers: {
+            Accept: "application/json",
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${accessToken}`,
+          },
         }
-      ]);
+      );
 
-      setExpenseSummary({
-        total: 5500,
-        pending: 3500,
-        approved: 1250,
-        rejected: 750,
-      });
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`HTTP error! Status: ${response.status}. ${errorText}`);
+      }
 
-      setAdvanceBalance(0);
-      setIsLoading(false);
-    }, 1000);
+      const result = await response.json();
+      console.log("Expense claims list retrieved");
 
-    return () => clearTimeout(timer);
+      if (result?.data) {
+        const claimsList = Array.isArray(result.data) ? result.data : [];
+        const detailPromises = claimsList.map((claim: { name: string }) =>
+          fetchExpenseClaimDetails(claim.name)
+        );
+
+        const detailResults = await Promise.all(detailPromises);
+        const formattedClaims = detailResults.filter(Boolean) as ExpenseClaim[];
+
+        // Filter claims for the current employee
+        const filteredClaims = employeeProfile?.name
+          ? formattedClaims.filter((claim) => claim.employee === employeeProfile.name)
+          : formattedClaims;
+
+        setExpenseClaims(filteredClaims);
+      } else {
+        console.warn("No expense claims found in response");
+        setExpenseClaims([]);
+      }
+    } catch (error) {
+      console.error("Error fetching expense claims:", error);
+      setError(error instanceof Error ? error : new Error("Unknown error"));
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, [accessToken, employeeProfile?.name]);
+
+  const refresh = useCallback(() => {
+    setRefreshing(true);
+    fetchExpenseClaims();
+  }, [fetchExpenseClaims]);
+
+  React.useEffect(() => {
+    fetchExpenseClaims();
+  }, [fetchExpenseClaims]);
+
+  const selectExpenseById = useCallback(
+    (id: string) => {
+      const expense = expenseClaims.find((claim) => claim.name === id) || null;
+      setSelectedExpense(expense);
+      return expense;
+    },
+    [expenseClaims]
+  );
+
+  const clearSelectedExpense = useCallback(() => {
+    setSelectedExpense(null);
   }, []);
 
+  return {
+    data: expenseClaims,
+    loading,
+    error,
+    refreshing,
+    refresh,
+    selectedExpense,
+    selectExpenseById,
+    clearSelectedExpense,
+  };
+};
+
+export default function ExpenseClaimScreen() {
+  const { theme, isDark } = useTheme();
+  const [showFormModal, setShowFormModal] = useState(false);
+  const {
+    data: expenseClaims,
+    loading,
+    error,
+    refreshing,
+    refresh,
+  } = useExpenseClaims();
+
   const handleFormSubmit = (data: any) => {
-    // Here you would typically send the data to your API
     console.log("Form submitted with data:", data);
-
-    // For demo purposes, we'll just close the modal
     setShowFormModal(false);
-
-    // Show a success message or refresh the expense list
+    refresh();
   };
 
   const handleFormCancel = () => {
@@ -99,8 +197,10 @@ export default function ExpenseClaimScreen() {
         return theme.statusColors.warning;
       case "Rejected":
         return theme.statusColors.error;
-      default:
+      case "Draft":
         return theme.colors.textSecondary;
+      default:
+        return theme.colors.textTertiary;
     }
   };
 
@@ -112,68 +212,98 @@ export default function ExpenseClaimScreen() {
         return "time-outline";
       case "Rejected":
         return "close-circle-outline";
+      case "Draft":
+        return "document-outline";
       default:
         return "help-circle-outline";
     }
   };
 
-  const renderExpenseItem = (expense: Expense) => (
-    <TouchableOpacity
-      key={expense.id}
-      style={[
-        styles.expenseItem,
-        {
-          backgroundColor: theme.colors.surfacePrimary,
-          borderColor: theme.colors.border,
-        },
-      ]}
-    >
-      <View style={styles.expenseHeader}>
-        <View style={styles.expenseIdContainer}>
-          <Text style={[styles.expenseId, { color: theme.colors.textPrimary }]}>
-            {expense.id}
-          </Text>
-          <Text style={[styles.expenseDate, { color: theme.colors.textTertiary }]}>
-            {expense.date}
-          </Text>
-        </View>
-        <View
-          style={[
-            styles.statusBadge,
-            { backgroundColor: getStatusColor(expense.status) + "20" },
-          ]}
-        >
-          <Ionicons
-            name={getStatusIcon(expense.status)}
-            size={16}
-            color={getStatusColor(expense.status)}
-            style={styles.statusIcon}
-          />
-          <Text
+  const expenseSummary = React.useMemo(() => {
+    return expenseClaims.reduce(
+      (acc, claim) => {
+        acc.total += claim.grand_total || 0;
+
+        if (claim.approval_status === "Draft") {
+          acc.pending += claim.grand_total || 0;
+        } else if (claim.approval_status === "Approved") {
+          acc.approved += claim.grand_total || 0;
+        } else if (claim.approval_status === "Rejected") {
+          acc.rejected += claim.grand_total || 0;
+        }
+
+        return acc;
+      },
+      { total: 0, pending: 0, approved: 0, rejected: 0 }
+    );
+  }, [expenseClaims]);
+
+  const advanceBalance = 0;
+
+  const renderExpenseItem = (expense: ExpenseClaim) => {
+    const primaryExpense = expense.expenses?.[0];
+    const purpose = primaryExpense?.expense_type || "Expense Claim";
+    const amount = expense.grand_total || 0;
+    const date = expense.posting_date || "";
+
+    return (
+      <TouchableOpacity
+        key={expense.name}
+        style={[
+          styles.expenseItem,
+          {
+            backgroundColor: theme.colors.surfacePrimary,
+            borderColor: theme.colors.border,
+          },
+        ]}
+      >
+        <View style={styles.expenseHeader}>
+          <View style={styles.expenseIdContainer}>
+            <Text style={[styles.expenseId, { color: theme.colors.textPrimary }]}>
+              {expense.name}
+            </Text>
+            <Text style={[styles.expenseDate, { color: theme.colors.textTertiary }]}>
+              {date}
+            </Text>
+          </View>
+          <View
             style={[
-              styles.statusText,
-              { color: getStatusColor(expense.status) },
+              styles.statusBadge,
+              { backgroundColor: getStatusColor(expense.approval_status) + "20" },
             ]}
           >
-            {expense.status}
-          </Text>
+            <Ionicons
+              name={getStatusIcon(expense.approval_status)}
+              size={16}
+              color={getStatusColor(expense.approval_status)}
+              style={styles.statusIcon}
+            />
+            <Text
+              style={[
+                styles.statusText,
+                { color: getStatusColor(expense.approval_status) },
+              ]}
+            >
+              {expense.approval_status}
+            </Text>
+          </View>
         </View>
-      </View>
-      <Text style={[styles.expensePurpose, { color: theme.colors.textPrimary }]}>
-        {expense.purpose}
-      </Text>
-      <View style={styles.expenseFooter}>
-        <Text style={[styles.expenseAmount, { color: theme.colors.textPrimary }]}>
-          ₹{expense.amount.toFixed(2)}
+        <Text style={[styles.expensePurpose, { color: theme.colors.textPrimary }]}>
+          {purpose}
         </Text>
-        <Ionicons
-          name="chevron-forward"
-          size={20}
-          color={theme.colors.textTertiary}
-        />
-      </View>
-    </TouchableOpacity>
-  );
+        <View style={styles.expenseFooter}>
+          <Text style={[styles.expenseAmount, { color: theme.colors.textPrimary }]}>
+            ₹{amount.toFixed(2)}
+          </Text>
+          <Ionicons
+            name="chevron-forward"
+            size={20}
+            color={theme.colors.textTertiary}
+          />
+        </View>
+      </TouchableOpacity>
+    );
+  };
 
   return (
     <SafeAreaView
@@ -185,6 +315,14 @@ export default function ExpenseClaimScreen() {
         style={styles.scrollContainer}
         contentContainerStyle={styles.contentContainer}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={refresh}
+            colors={[theme.colors.buttonPrimary]}
+            tintColor={theme.colors.buttonPrimary}
+          />
+        }
       >
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}>
@@ -203,7 +341,7 @@ export default function ExpenseClaimScreen() {
                 Total Expense Amount
               </Text>
               <Text style={[styles.totalAmount, { color: theme.colors.textPrimary }]}>
-                ₹{expenseSummary.total.toFixed(0)}
+                ₹{expenseSummary.total.toFixed(2)}
               </Text>
             </View>
 
@@ -214,7 +352,7 @@ export default function ExpenseClaimScreen() {
                 </View>
                 <View style={styles.statusItemContent}>
                   <Text style={[styles.statusValue, { color: theme.colors.textPrimary }]}>
-                    ₹{expenseSummary.pending.toFixed(0)}
+                    ₹{expenseSummary.pending.toFixed(2)}
                   </Text>
                   <Text style={[styles.statusLabel, { color: theme.colors.textSecondary }]}>
                     Pending
@@ -228,7 +366,7 @@ export default function ExpenseClaimScreen() {
                 </View>
                 <View style={styles.statusItemContent}>
                   <Text style={[styles.statusValue, { color: theme.colors.textPrimary }]}>
-                    ₹{expenseSummary.approved.toFixed(0)}
+                    ₹{expenseSummary.approved.toFixed(2)}
                   </Text>
                   <Text style={[styles.statusLabel, { color: theme.colors.textSecondary }]}>
                     Approved
@@ -242,7 +380,7 @@ export default function ExpenseClaimScreen() {
                 </View>
                 <View style={styles.statusItemContent}>
                   <Text style={[styles.statusValue, { color: theme.colors.textPrimary }]}>
-                    ₹{expenseSummary.rejected.toFixed(0)}
+                    ₹{expenseSummary.rejected.toFixed(2)}
                   </Text>
                   <Text style={[styles.statusLabel, { color: theme.colors.textSecondary }]}>
                     Rejected
@@ -270,7 +408,7 @@ export default function ExpenseClaimScreen() {
             <Text style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}>
               Recent Expenses
             </Text>
-            {expenses.length > 0 && (
+            {expenseClaims.length > 0 && (
               <TouchableOpacity>
                 <Text style={[styles.viewAllLink, { color: theme.colors.buttonPrimary }]}>
                   View All
@@ -279,13 +417,37 @@ export default function ExpenseClaimScreen() {
             )}
           </View>
 
-          {isLoading ? (
+          {loading && !refreshing ? (
             <View style={styles.loadingContainer}>
               <ActivityIndicator size="large" color={theme.colors.buttonPrimary} />
             </View>
-          ) : expenses.length > 0 ? (
+          ) : error ? (
+            <View style={styles.emptyStateContainer}>
+              <Ionicons
+                name="warning-outline"
+                size={48}
+                color={theme.colors.textTertiary}
+              />
+              <Text style={[styles.emptyStateText, { color: theme.colors.textPrimary }]}>
+                Error loading expense claims
+              </Text>
+              <Text
+                style={[
+                  styles.emptyStateSubText,
+                  { color: theme.colors.textTertiary },
+                ]}
+              >
+                {error.message}
+              </Text>
+              <TouchableOpacity onPress={refresh}>
+                <Text style={{ color: theme.colors.buttonPrimary, marginTop: 8 }}>
+                  Try Again
+                </Text>
+              </TouchableOpacity>
+            </View>
+          ) : expenseClaims.length > 0 ? (
             <View style={styles.expensesList}>
-              {expenses.map(renderExpenseItem)}
+              {expenseClaims.map(renderExpenseItem)}
             </View>
           ) : (
             <View
@@ -378,7 +540,6 @@ export default function ExpenseClaimScreen() {
         </View>
       </ScrollView>
 
-      {/* Modal for Expense Claim Form */}
       <Modal
         visible={showFormModal}
         animationType="slide"
@@ -490,7 +651,7 @@ const styles = StyleSheet.create({
   },
   expenseItem: {
     borderRadius: 12,
-    padding: 16,
+    padding: 14,
     marginBottom: 12,
     borderWidth: 1,
   },
@@ -498,7 +659,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 8,
+    marginBottom: 6,
   },
   expenseIdContainer: {
     flexDirection: "column",
