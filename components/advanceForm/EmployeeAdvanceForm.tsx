@@ -11,15 +11,17 @@ import {
   Platform,
   Pressable,
   ScrollView,
-  StyleSheet,
   Switch,
   Text,
   TextInput,
   TouchableOpacity,
   View,
+  ActivityIndicator,
 } from "react-native";
-import AttachmentsSection from "./sections/AttachmentSection";
-import Header from "./sections/Header";
+import AttachmentsSection from "../expenseClaim/sections/AttachmentSection";
+import Header from "../expenseClaim/sections/Header";
+import useAccountingData from "@/hooks/useAccountingData";
+import { styles } from "./styles";
 
 interface EmployeeAdvanceFormProps {
   onSubmit: (data: EmployeeAdvanceFormData) => void;
@@ -56,10 +58,19 @@ const EmployeeAdvanceForm: React.FC<EmployeeAdvanceFormProps> = ({ onSubmit, onC
   const { theme } = useTheme();
   const { accessToken, employeeProfile } = useAuthContext();
 
+  // Use the accounting data hook to get currencies, accounts, and payment modes
+  const {
+    companyCurrency,
+    accounts: accountingAccounts,
+    paymentModes,
+    loading: loadingAccounting,
+    error: accountingError
+  } = useAccountingData(accessToken as string);
+
   // State for form data
   const [formData, setFormData] = useState<EmployeeAdvanceFormData>({
     postingDate: new Date(),
-    currency: "INR",
+    currency: "", // Start with empty string, will be populated with company currency
     purpose: "",
     advanceAmount: "",
     advanceAccount: "",
@@ -87,26 +98,45 @@ const EmployeeAdvanceForm: React.FC<EmployeeAdvanceFormProps> = ({ onSubmit, onC
     onCancel: () => {},
   });
 
-  // Mock data for dropdowns
-  const currencies: DropdownItem[] = [
-    { value: "INR", label: "INR - Indian Rupee" },
-    { value: "USD", label: "USD - US Dollar" },
-    { value: "EUR", label: "EUR - Euro" },
-    { value: "GBP", label: "GBP - British Pound" },
-  ];
+  // Currencies state
+  const [currencies, setCurrencies] = useState<DropdownItem[]>([]);
 
-  const accounts: DropdownItem[] = [
-    { value: "1310-001", label: "Employee Advances - Operations" },
-    { value: "1310-002", label: "Employee Advances - Sales" },
-    { value: "1310-003", label: "Employee Advances - Administration" },
-  ];
+  // Set the company currency as default when it loads
+  useEffect(() => {
+    if (companyCurrency && companyCurrency.code) {
+      // Set the company currency as the default in the form
+      setFormData(prevData => ({
+        ...prevData,
+        currency: companyCurrency.code
+      }));
 
-  const paymentModes: DropdownItem[] = [
-    { value: "Bank Transfer", label: "Bank Transfer" },
-    { value: "Cash", label: "Cash" },
-    { value: "Check", label: "Check" },
-    { value: "Credit Card", label: "Credit Card" },
-  ];
+      // Update the currencies list to include the company currency if not already present
+      setCurrencies(prevCurrencies => {
+        // Check if company currency is already in the list
+        const exists = prevCurrencies.some(curr => curr.value === companyCurrency.code);
+        if (!exists) {
+          return [
+            { value: companyCurrency.code, label: `${companyCurrency.code} - ${companyCurrency.symbol || 'Company Currency'}` },
+            ...prevCurrencies
+          ];
+        }
+        return prevCurrencies;
+      });
+    }
+  }, [companyCurrency]);
+
+  // Format accounts from hook for dropdown (filter for advance accounts)
+  const formattedAccounts: DropdownItem[] = accountingAccounts
+    .map(account => ({
+      value: account.name,
+      label: account.name
+    }));
+
+  // Format payment modes from hook for dropdown
+  const formattedPaymentModes: DropdownItem[] = paymentModes.map(mode => ({
+    value: mode.name,
+    label: mode.name
+  }));
 
   // Close dropdowns when tapping outside
   useEffect(() => {
@@ -193,6 +223,16 @@ const EmployeeAdvanceForm: React.FC<EmployeeAdvanceFormProps> = ({ onSubmit, onC
       showAlertDialog({
         title: "Validation Error",
         message: "Please select a mode of payment",
+        showCancel: false,
+        onConfirm: hideAlertDialog,
+      });
+      return false;
+    }
+
+    if (!formData.currency) {
+      showAlertDialog({
+        title: "Validation Error",
+        message: "Please select a currency",
         showCancel: false,
         onConfirm: hideAlertDialog,
       });
@@ -291,6 +331,153 @@ const EmployeeAdvanceForm: React.FC<EmployeeAdvanceFormProps> = ({ onSubmit, onC
     });
   };
 
+  // Show currency label based on selection
+  const getCurrencyLabel = (code: string) => {
+    const currency = currencies.find(curr => curr.value === code);
+    return currency ? currency.label : code;
+  };
+
+  // Reusable Dropdown Component
+  interface CustomDropdownProps {
+    isOpen: boolean;
+    onPress: () => void;
+    selectedValue: string;
+    placeholder: string;
+    items: DropdownItem[];
+    onSelect: (value: string) => void;
+    isLoading: boolean;
+    loadingText?: string;
+    emptyText?: string;
+    keyExtractor?: (item: DropdownItem, index: number) => string;
+    specialLabel?: string | null;
+    showSpecialLabel?: (item: DropdownItem) => boolean;
+  }
+
+  const CustomDropdown: React.FC<CustomDropdownProps> = ({
+    isOpen,
+    onPress,
+    selectedValue,
+    placeholder,
+    items,
+    onSelect,
+    isLoading,
+    loadingText = "Loading...",
+    emptyText = "No items found",
+    keyExtractor = (item, index) => index.toString(),
+    specialLabel = null,
+    showSpecialLabel = (item) => false,
+  }) => {
+    return (
+      <>
+        <TouchableOpacity
+          style={[
+            styles.dropdownContainer,
+            { backgroundColor: theme.colors.inputBackground, borderColor: theme.colors.inputBorder },
+          ]}
+          onPress={onPress}
+        >
+          {isLoading ? (
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <ActivityIndicator size="small" color={theme.colors.iconPrimary} />
+              <Text style={[styles.inputText, { marginLeft: 8, color: theme.colors.inputPlaceholder }]}>
+                {loadingText}
+              </Text>
+            </View>
+          ) : (
+            <Text
+              style={[
+                styles.inputText,
+                { color: selectedValue ? theme.colors.textPrimary : theme.colors.inputPlaceholder },
+              ]}
+            >
+              {selectedValue || placeholder}
+            </Text>
+          )}
+          <Ionicons
+            name={isOpen ? "chevron-up" : "chevron-down"}
+            size={20}
+            color={theme.colors.iconSecondary}
+          />
+        </TouchableOpacity>
+
+        {isOpen && !isLoading && (
+          <View
+            style={[
+              styles.dropdownWrapper,
+              {
+                backgroundColor: theme.colors.surfacePrimary,
+                borderColor: theme.colors.border,
+              },
+            ]}
+          >
+            <ScrollView
+              style={styles.dropdownScroll}
+              nestedScrollEnabled={true}
+              showsVerticalScrollIndicator={true}
+              keyboardShouldPersistTaps="handled"
+            >
+              {items.length > 0 ? (
+                items.map((item: any, index: number) => (
+                  <TouchableOpacity
+                    key={keyExtractor(item, index)}
+                    style={[
+                      styles.dropdownItem,
+                      {
+                        borderBottomColor: index < items.length - 1 ? theme.colors.divider : "transparent",
+                        borderBottomWidth: index < items.length - 1 ? 1 : 0,
+                        backgroundColor:
+                          selectedValue === item.value ? theme.colors.surfaceSecondary : 'transparent',
+                      },
+                    ]}
+                    onPress={() => onSelect(item.value)}
+                  >
+                    <Text
+                      style={[
+                        styles.dropdownItemText,
+                        {
+                          color: theme.colors.textPrimary,
+                          fontWeight: selectedValue === item.value ? '600' : 'normal'
+                        }
+                      ]}
+                    >
+                      {item.label}
+                    </Text>
+                    {specialLabel && showSpecialLabel(item) && (
+                      <Text style={{ color: theme.colors.textSecondary, fontSize: 12, marginTop: 2 }}>
+                        {specialLabel}
+                      </Text>
+                    )}
+                  </TouchableOpacity>
+                ))
+              ) : (
+                <View style={styles.dropdownItem}>
+                  <Text style={[styles.dropdownItemText, { color: theme.colors.textSecondary }]}>
+                    {emptyText}
+                  </Text>
+                </View>
+              )}
+            </ScrollView>
+          </View>
+        )}
+      </>
+    );
+  };
+
+  // Display error if accounting data failed to load
+  if (accountingError) {
+    return (
+      <View style={[styles.container, { backgroundColor: theme.colors.background, justifyContent: 'center', alignItems: 'center' }]}>
+        <Text style={{ color: theme.colors.textError }}>Error loading accounting data: {accountingError.message}</Text>
+        <TouchableOpacity
+          style={[styles.submitButton, { backgroundColor: theme.colors.buttonPrimary, marginTop: 20, width: 200 }]}
+          onPress={() => window.location.reload()}
+        >
+          <Text style={[styles.submitButtonText, { color: theme.colors.textInverted }]}>Retry</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
   return (
     <KeyboardAvoidingView
       style={[styles.container, { backgroundColor: theme.colors.background }]}
@@ -357,64 +544,25 @@ const EmployeeAdvanceForm: React.FC<EmployeeAdvanceFormProps> = ({ onSubmit, onC
             <Text style={[styles.label, { color: theme.colors.textSecondary }]}>
               Currency <Text style={{ color: theme.colors.textError }}>*</Text>
             </Text>
-            <TouchableOpacity
-              style={[
-                styles.dropdownContainer,
-                { backgroundColor: theme.colors.inputBackground, borderColor: theme.colors.inputBorder },
-              ]}
+            <CustomDropdown
+              isOpen={showCurrencyDropdown}
               onPress={() => {
                 setShowCurrencyDropdown(!showCurrencyDropdown);
                 setShowAccountDropdown(false);
                 setShowPaymentDropdown(false);
               }}
-            >
-              <Text
-                style={[
-                  styles.inputText,
-                  { color: formData.currency ? theme.colors.textPrimary : theme.colors.inputPlaceholder },
-                ]}
-              >
-                {formData.currency || "Select Currency"}
-              </Text>
-              <Ionicons
-                name={showCurrencyDropdown ? "chevron-up" : "chevron-down"}
-                size={20}
-                color={theme.colors.iconSecondary}
-              />
-            </TouchableOpacity>
-
-            {showCurrencyDropdown && (
-              <View
-                style={[
-                  styles.dropdown,
-                  {
-                    backgroundColor: theme.colors.surfacePrimary,
-                    borderColor: theme.colors.border,
-                  },
-                ]}
-              >
-                {currencies.map((item, index) => (
-                  <TouchableOpacity
-                    key={index}
-                    style={[
-                      styles.dropdownItem,
-                      {
-                        borderBottomColor: index < currencies.length - 1 ? theme.colors.divider : "transparent",
-                        borderBottomWidth: index < currencies.length - 1 ? 1 : 0,
-                      },
-                    ]}
-                    onPress={() => {
-                      setFormData({ ...formData, currency: item.value });
-                      setShowCurrencyDropdown(false);
-                    }}
-                  >
-                    <Text style={[styles.dropdownItemText, { color: theme.colors.textPrimary }]}>
-                      {item.label}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            )}
+              selectedValue={formData.currency ? getCurrencyLabel(formData.currency) : ""}
+              placeholder="Select Currency"
+              items={currencies}
+              onSelect={(value: string) => {
+                setFormData({ ...formData, currency: value });
+                setShowCurrencyDropdown(false);
+              }}
+              isLoading={loadingAccounting}
+              loadingText="Loading currencies..."
+              keyExtractor={(item) => item.value}
+              showSpecialLabel={(item) => item.value === companyCurrency?.code}
+            />
           </View>
 
           {/* Purpose & Amount Section */}
@@ -442,21 +590,29 @@ const EmployeeAdvanceForm: React.FC<EmployeeAdvanceFormProps> = ({ onSubmit, onC
             <Text style={[styles.label, { color: theme.colors.textSecondary }]}>
               Advance Amount <Text style={{ color: theme.colors.textError }}>*</Text>
             </Text>
-            <TextInput
-              style={[
-                styles.input,
-                {
-                  backgroundColor: theme.colors.inputBackground,
-                  borderColor: theme.colors.inputBorder,
-                  color: theme.colors.textPrimary,
-                },
-              ]}
-              placeholder="0.00"
-              placeholderTextColor={theme.colors.inputPlaceholder}
-              value={formData.advanceAmount}
-              onChangeText={(text) => setFormData({ ...formData, advanceAmount: text })}
-              keyboardType="numeric"
-            />
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              {formData.currency && companyCurrency && formData.currency === companyCurrency.code && (
+                <Text style={[styles.currencySymbol, { color: theme.colors.textSecondary }]}>
+                  {companyCurrency.symbol || ''}
+                </Text>
+              )}
+              <TextInput
+                style={[
+                  styles.input,
+                  {
+                    backgroundColor: theme.colors.inputBackground,
+                    borderColor: theme.colors.inputBorder,
+                    color: theme.colors.textPrimary,
+                    flex: 1,
+                  },
+                ]}
+                placeholder="0.00"
+                placeholderTextColor={theme.colors.inputPlaceholder}
+                value={formData.advanceAmount}
+                onChangeText={(text) => setFormData({ ...formData, advanceAmount: text })}
+                keyboardType="numeric"
+              />
+            </View>
           </View>
 
           {/* Accounting Section */}
@@ -464,126 +620,45 @@ const EmployeeAdvanceForm: React.FC<EmployeeAdvanceFormProps> = ({ onSubmit, onC
             <Text style={[styles.label, { color: theme.colors.textSecondary }]}>
               Advance Account <Text style={{ color: theme.colors.textError }}>*</Text>
             </Text>
-            <TouchableOpacity
-              style={[
-                styles.dropdownContainer,
-                { backgroundColor: theme.colors.inputBackground, borderColor: theme.colors.inputBorder },
-              ]}
+            <CustomDropdown
+              isOpen={showAccountDropdown}
               onPress={() => {
                 setShowAccountDropdown(!showAccountDropdown);
                 setShowCurrencyDropdown(false);
                 setShowPaymentDropdown(false);
               }}
-            >
-              <Text
-                style={[
-                  styles.inputText,
-                  { color: formData.advanceAccount ? theme.colors.textPrimary : theme.colors.inputPlaceholder },
-                ]}
-              >
-                {formData.advanceAccount ? accounts.find(acc => acc.value === formData.advanceAccount)?.label : "Select Account"}
-              </Text>
-              <Ionicons
-                name={showAccountDropdown ? "chevron-up" : "chevron-down"}
-                size={20}
-                color={theme.colors.iconSecondary}
-              />
-            </TouchableOpacity>
-
-            {showAccountDropdown && (
-              <View
-                style={[
-                  styles.dropdown,
-                  {
-                    backgroundColor: theme.colors.surfacePrimary,
-                    borderColor: theme.colors.border,
-                  },
-                ]}
-              >
-                {accounts.map((item, index) => (
-                  <TouchableOpacity
-                    key={index}
-                    style={[
-                      styles.dropdownItem,
-                      {
-                        borderBottomColor: index < accounts.length - 1 ? theme.colors.divider : "transparent",
-                        borderBottomWidth: index < accounts.length - 1 ? 1 : 0,
-                      },
-                    ]}
-                    onPress={() => {
-                      setFormData({ ...formData, advanceAccount: item.value });
-                      setShowAccountDropdown(false);
-                    }}
-                  >
-                    <Text style={[styles.dropdownItemText, { color: theme.colors.textPrimary }]}>
-                      {item.label}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            )}
+              selectedValue={formData.advanceAccount}
+              placeholder="Select Account"
+              items={formattedAccounts}
+              onSelect={(value) => {
+                setFormData({ ...formData, advanceAccount: value });
+                setShowAccountDropdown(false);
+              }}
+              isLoading={loadingAccounting}
+              loadingText="Loading accounts..."
+              emptyText="No advance accounts found"
+            />
 
             <Text style={[styles.label, { color: theme.colors.textSecondary }]}>
               Mode of Payment <Text style={{ color: theme.colors.textError }}>*</Text>
             </Text>
-            <TouchableOpacity
-              style={[
-                styles.dropdownContainer,
-                { backgroundColor: theme.colors.inputBackground, borderColor: theme.colors.inputBorder },
-              ]}
+            <CustomDropdown
+              isOpen={showPaymentDropdown}
               onPress={() => {
                 setShowPaymentDropdown(!showPaymentDropdown);
                 setShowCurrencyDropdown(false);
                 setShowAccountDropdown(false);
               }}
-            >
-              <Text
-                style={[
-                  styles.inputText,
-                  { color: formData.modeOfPayment ? theme.colors.textPrimary : theme.colors.inputPlaceholder },
-                ]}
-              >
-                {formData.modeOfPayment || "Select Mode of Payment"}
-              </Text>
-              <Ionicons
-                name={showPaymentDropdown ? "chevron-up" : "chevron-down"}
-                size={20}
-                color={theme.colors.iconSecondary}
-              />
-            </TouchableOpacity>
-
-            {showPaymentDropdown && (
-              <View
-                style={[
-                  styles.dropdown,
-                  {
-                    backgroundColor: theme.colors.surfacePrimary,
-                    borderColor: theme.colors.border,
-                  },
-                ]}
-              >
-                {paymentModes.map((item, index) => (
-                  <TouchableOpacity
-                    key={index}
-                    style={[
-                      styles.dropdownItem,
-                      {
-                        borderBottomColor: index < paymentModes.length - 1 ? theme.colors.divider : "transparent",
-                        borderBottomWidth: index < paymentModes.length - 1 ? 1 : 0,
-                      },
-                    ]}
-                    onPress={() => {
-                      setFormData({ ...formData, modeOfPayment: item.value });
-                      setShowPaymentDropdown(false);
-                    }}
-                  >
-                    <Text style={[styles.dropdownItemText, { color: theme.colors.textPrimary }]}>
-                      {item.label}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            )}
+              selectedValue={formData.modeOfPayment}
+              placeholder="Select Mode of Payment"
+              items={formattedPaymentModes}
+              onSelect={(value) => {
+                setFormData({ ...formData, modeOfPayment: value });
+                setShowPaymentDropdown(false);
+              }}
+              isLoading={loadingAccounting}
+              loadingText="Loading payment modes..."
+            />
 
             <View style={styles.checkboxContainer}>
               <Switch
@@ -631,90 +706,5 @@ const EmployeeAdvanceForm: React.FC<EmployeeAdvanceFormProps> = ({ onSubmit, onC
     </KeyboardAvoidingView>
   );
 };
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  form: {
-    flex: 1,
-    paddingHorizontal: 16,
-  },
-  fieldContainer: {
-    marginBottom: 16,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    marginBottom: 16,
-  },
-  label: {
-    fontSize: 14,
-    fontWeight: "600",
-    marginBottom: 6,
-    marginTop: 8,
-  },
-  input: {
-    height: 48,
-    borderWidth: 1,
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    justifyContent: "center",
-  },
-  inputText: {
-    fontSize: 16,
-  },
-  textArea: {
-    height: 96,
-    textAlignVertical: "top",
-    paddingTop: 12,
-  },
-  dropdownContainer: {
-    height: 48,
-    borderWidth: 1,
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  dropdown: {
-    borderRadius: 8,
-    borderWidth: 1,
-    marginTop: 4,
-    maxHeight: 200,
-  },
-  dropdownItem: {
-    padding: 12,
-  },
-  dropdownItemText: {
-    fontSize: 16,
-  },
-  checkboxContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginTop: 16,
-  },
-  checkboxLabel: {
-    marginLeft: 12,
-    fontSize: 16,
-    flex: 1,
-  },
-  footer: {
-    padding: 16,
-    borderTopWidth: 1,
-    borderTopColor: "#E5E8EC",
-  },
-  submitButton: {
-    height: 48,
-    borderRadius: 8,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  submitButtonText: {
-    fontSize: 16,
-    fontWeight: "600",
-  },
-});
 
 export default EmployeeAdvanceForm;

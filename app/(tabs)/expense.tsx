@@ -15,7 +15,7 @@ import {
   TouchableOpacity,
   View
 } from "react-native";
-import EmployeeAdvanceForm from "@/components/expenseClaim/EmployeeAdvanceForm";
+import EmployeeAdvanceForm from "@/components/advanceForm/EmployeeAdvanceForm";
 // import { EmployeeAdvanceFormData } from "@/components/expenseClaim/EmployeeAdvanceForm";
 
 export interface ExpenseClaim {
