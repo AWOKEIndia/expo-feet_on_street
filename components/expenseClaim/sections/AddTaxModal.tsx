@@ -378,40 +378,6 @@ const AddTaxModal: React.FC<AddTaxModalProps> = ({
             )}
           </View>
 
-          <View style={styles.fieldContainer}>
-            <Text style={[styles.label, { color: theme.colors.textSecondary }]}>
-              Project
-            </Text>
-            <TouchableOpacity
-              style={[
-                styles.dropdownContainer,
-                {
-                  backgroundColor: theme.colors.inputBackground,
-                  borderColor: theme.colors.inputBorder,
-                },
-              ]}
-              disabled={true}
-            >
-              <Text
-                style={[
-                  styles.inputText,
-                  {
-                    color: project
-                      ? theme.colors.textPrimary
-                      : theme.colors.inputPlaceholder,
-                  },
-                ]}
-              >
-                {project || "Select Project"}
-              </Text>
-              <Ionicons
-                name="chevron-down"
-                size={20}
-                color={theme.colors.iconSecondary}
-              />
-            </TouchableOpacity>
-          </View>
-
           <TouchableOpacity
             style={[
               styles.addExpenseButton,

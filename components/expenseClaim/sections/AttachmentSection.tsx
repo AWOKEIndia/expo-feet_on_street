@@ -22,7 +22,7 @@ const AttachmentsSection: React.FC<AttachmentsSectionProps> = ({
   return (
     <>
       {/* Section Divider */}
-      <View style={styles.sectionContainer || { marginVertical: 16 }}>
+      <View style={styles.sectionContainer || { marginVertical: 6 }}>
         <Text
           style={[
             styles.sectionTitle || { fontSize: 16, fontWeight: "bold" },

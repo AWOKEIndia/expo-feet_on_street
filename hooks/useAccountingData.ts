@@ -8,10 +8,21 @@ export interface CostCenter {
   name: string;
 }
 
+export interface PaymentMode {
+  name: string;
+}
+
+export interface CompanyCurrency {
+  code: string;
+  symbol: string;
+}
+
 type AccountingDataCache = {
   [key: string]: {
     accounts: Account[];
     costCenters: CostCenter[];
+    paymentModes: PaymentMode[];
+    companyCurrency: CompanyCurrency | null;
   };
 };
 
@@ -21,8 +32,11 @@ const useAccountingData = (accessToken: string, companyId?: string) => {
   const [refreshing, setRefreshing] = useState(false);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [costCenters, setCostCenters] = useState<CostCenter[]>([]);
+  const [paymentModes, setPaymentModes] = useState<PaymentMode[]>([]);
+  const [companyCurrency, setCompanyCurrency] = useState<CompanyCurrency | null>(null);
   const [selectedAccount, setSelectedAccount] = useState<Account | null>(null);
   const [selectedCostCenter, setSelectedCostCenter] = useState<CostCenter | null>(null);
+  const [selectedPaymentMode, setSelectedPaymentMode] = useState<PaymentMode | null>(null);
 
   const cacheRef = useRef<AccountingDataCache>({});
   const cacheKey = `accounting_${companyId || "all"}`;
@@ -32,6 +46,8 @@ const useAccountingData = (accessToken: string, companyId?: string) => {
     if (cacheRef.current[cacheKey] && !refreshing) {
       setAccounts(cacheRef.current[cacheKey].accounts);
       setCostCenters(cacheRef.current[cacheKey].costCenters);
+      setPaymentModes(cacheRef.current[cacheKey].paymentModes);
+      setCompanyCurrency(cacheRef.current[cacheKey].companyCurrency);
       return;
     }
 
@@ -81,6 +97,48 @@ const useAccountingData = (accessToken: string, companyId?: string) => {
       const costCentersResult = await costCentersResponse.json();
       console.log("Cost centers list retrieved");
 
+      // Fetch payment modes list
+      const paymentModesResponse = await fetch(
+        `${process.env.EXPO_PUBLIC_BASE_URL}/api/resource/Mode of Payment`,
+        {
+          method: "GET",
+          headers: {
+            Accept: "application/json",
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${accessToken}`,
+          },
+        }
+      );
+
+      if (!paymentModesResponse.ok) {
+        const errorText = await paymentModesResponse.text();
+        throw new Error(`HTTP error! Status: ${paymentModesResponse.status}. ${errorText}`);
+      }
+
+      const paymentModesResult = await paymentModesResponse.json();
+      console.log("Payment modes list retrieved");
+
+      // Fetch company currency
+      const currencyResponse = await fetch(
+        `${process.env.EXPO_PUBLIC_BASE_URL}/api/method/hrms.api.get_company_currencies`,
+        {
+          method: "GET",
+          headers: {
+            Accept: "application/json",
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${accessToken}`,
+          },
+        }
+      );
+
+      if (!currencyResponse.ok) {
+        const errorText = await currencyResponse.text();
+        throw new Error(`HTTP error! Status: ${currencyResponse.status}. ${errorText}`);
+      }
+
+      const currencyResult = await currencyResponse.json();
+      console.log("Company currency retrieved");
+
       // Process accounts data
       if (accountsResult && accountsResult.data) {
         const accountsList = Array.isArray(accountsResult.data)
@@ -105,10 +163,44 @@ const useAccountingData = (accessToken: string, companyId?: string) => {
         setCostCenters([]);
       }
 
+      // Process payment modes data
+      if (paymentModesResult && paymentModesResult.data) {
+        const paymentModesList = Array.isArray(paymentModesResult.data)
+          ? paymentModesResult.data
+          : [];
+
+        setPaymentModes(paymentModesList);
+      } else {
+        console.warn("No payment modes found in response");
+        setPaymentModes([]);
+      }
+
+      // Process company currency data
+      let currencyData: CompanyCurrency | null = null;
+      if (currencyResult && currencyResult.message) {
+        const companyCode = Object.keys(currencyResult.message)[0];
+        if (companyCode && Array.isArray(currencyResult.message[companyCode]) && currencyResult.message[companyCode].length >= 2) {
+          currencyData = {
+            code: currencyResult.message[companyCode][0],
+            symbol: currencyResult.message[companyCode][1]
+          };
+          setCompanyCurrency(currencyData);
+          console.log(`Company currency set: ${currencyData.code} (${currencyData.symbol})`);
+        } else {
+          console.warn("Invalid currency data format in response");
+          setCompanyCurrency(null);
+        }
+      } else {
+        console.warn("No currency data found in response");
+        setCompanyCurrency(null);
+      }
+
       // Update cache
       cacheRef.current[cacheKey] = {
         accounts: accounts.length > 0 ? accounts : (accountsResult?.data || []),
-        costCenters: costCenters.length > 0 ? costCenters : (costCentersResult?.data || [])
+        costCenters: costCenters.length > 0 ? costCenters : (costCentersResult?.data || []),
+        paymentModes: paymentModes.length > 0 ? paymentModes : (paymentModesResult?.data || []),
+        companyCurrency: currencyData
       };
 
     } catch (error) {
@@ -118,7 +210,7 @@ const useAccountingData = (accessToken: string, companyId?: string) => {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [accessToken, cacheKey, refreshing, accounts, costCenters]);
+  }, [accessToken, cacheKey, refreshing, accounts, costCenters, paymentModes]);
 
   const refresh = useCallback(() => {
     setRefreshing(true);
@@ -150,6 +242,16 @@ const useAccountingData = (accessToken: string, companyId?: string) => {
     [costCenters]
   );
 
+  // Function to select a payment mode by name
+  const selectPaymentModeByName = useCallback(
+    (name: string) => {
+      const paymentMode = paymentModes.find((pm) => pm.name === name) || null;
+      setSelectedPaymentMode(paymentMode);
+      return paymentMode;
+    },
+    [paymentModes]
+  );
+
   // Clear selected items
   const clearSelectedAccount = useCallback(() => {
     setSelectedAccount(null);
@@ -159,19 +261,28 @@ const useAccountingData = (accessToken: string, companyId?: string) => {
     setSelectedCostCenter(null);
   }, []);
 
+  const clearSelectedPaymentMode = useCallback(() => {
+    setSelectedPaymentMode(null);
+  }, []);
+
   return {
     accounts,
     costCenters,
+    paymentModes,
+    companyCurrency,
     loading,
     error,
     refreshing,
     refresh,
     selectedAccount,
     selectedCostCenter,
+    selectedPaymentMode,
     selectAccountByName,
     selectCostCenterByName,
+    selectPaymentModeByName,
     clearSelectedAccount,
-    clearSelectedCostCenter
+    clearSelectedCostCenter,
+    clearSelectedPaymentMode
   };
 };
 

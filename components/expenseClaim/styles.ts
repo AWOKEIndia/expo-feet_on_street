@@ -250,7 +250,7 @@ export const styles = StyleSheet.create({
   },
   dropdownList: {
     position: "absolute",
-    top: 50,
+    top: 48,
     left: 0,
     right: 0,
     zIndex: 1000,
@@ -261,7 +261,7 @@ export const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 3,
-    elevation: 3,
+    elevation: 5,
   },
   modalOverlay: {
     flex: 1,
