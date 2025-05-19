@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -7,7 +7,8 @@ import {
   TouchableOpacity,
   TextInput,
   ActivityIndicator,
-  Platform
+  Platform,
+  Alert,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
@@ -22,6 +23,7 @@ interface AddExpenseModalProps {
   onClose: () => void;
   onAddExpense: (expense: any) => void;
   costCenter?: string;
+  onTaxAmountChange?: (amount: number) => void;
 }
 
 const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
@@ -29,6 +31,7 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
   onClose,
   onAddExpense,
   costCenter,
+  onTaxAmountChange,
 }) => {
   const { theme } = useTheme();
   const { accessToken } = useAuthContext();
@@ -40,16 +43,26 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
   const [sanctionedAmount, setSanctionedAmount] = useState("");
   const [showExpenseTypeDropdown, setShowExpenseTypeDropdown] = useState(false);
   const [showCostCenterDropdown, setShowCostCenterDropdown] = useState(false);
-  const [selectedCostCenter, setSelectedCostCenter] = useState(costCenter || "");
+  const [selectedCostCenter, setSelectedCostCenter] = useState(
+    costCenter || ""
+  );
 
-  const { data: expenseClaimTypes, loading: loadingExpenseTypes } = useExpenseClaimTypes(accessToken as string);
+  const { data: expenseClaimTypes, loading: loadingExpenseTypes } =
+    useExpenseClaimTypes(accessToken as string);
 
   // Use the accounting data hook to get cost centers
   const {
     costCenters,
     loading: loadingCostCenters,
-    error: costCentersError
+    error: costCentersError,
   } = useAccountingData(accessToken as string);
+
+  // Automatically set sanctioned amount when amount changes
+  useEffect(() => {
+    if (amount) {
+      setSanctionedAmount(amount);
+    }
+  }, [amount]);
 
   const formatDate = (date: Date) => {
     if (!date) return "";
@@ -69,17 +82,41 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
     }
   };
 
+  const handleAmountChange = (text: string) => {
+    const sanitizedText = text.replace(/[^0-9.]/g, "");
+    setAmount(sanitizedText);
+    // Sanctioned amount is automatically updated via useEffect
+  };
+
   const handleAdd = () => {
     if (!expenseType || !amount) {
+      Alert.alert("Required Fields", "Please fill in all required fields", [
+        { text: "OK" },
+      ]);
+      return;
+    }
+    if (onTaxAmountChange) {
+      onTaxAmountChange(parseFloat(amount));
+    }
+
+    // Validate amount and sanctioned amount relationship
+    if (parseFloat(amount) > parseFloat(sanctionedAmount)) {
+      Alert.alert(
+        "Invalid Amount",
+        "Expense amount cannot be greater than sanctioned amount",
+        [{ text: "OK" }]
+      );
       return;
     }
 
     const expense = {
-      expense_date: date.toISOString().split('T')[0], // Format as YYYY-MM-DD
+      expense_date: date.toISOString().split("T")[0], // Format as YYYY-MM-DD
       expense_type: expenseType,
       description,
       amount: parseFloat(amount),
-      sanctioned_amount: sanctionedAmount ? parseFloat(sanctionedAmount) : parseFloat(amount),
+      sanctioned_amount: sanctionedAmount
+        ? parseFloat(sanctionedAmount)
+        : parseFloat(amount),
       cost_center: selectedCostCenter,
     };
 
@@ -102,7 +139,9 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
       visible={visible}
       onRequestClose={onClose}
     >
-      <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+      <View
+        style={[styles.container, { backgroundColor: theme.colors.background }]}
+      >
         <View
           style={[
             styles.header,
@@ -139,7 +178,9 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
               ]}
               onPress={() => setShowDatePicker(true)}
             >
-              <Text style={[styles.inputText, { color: theme.colors.textPrimary }]}>
+              <Text
+                style={[styles.inputText, { color: theme.colors.textPrimary }]}
+              >
                 {formatDate(date)}
               </Text>
             </TouchableOpacity>
@@ -176,8 +217,16 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
             >
               {loadingExpenseTypes ? (
                 <View style={styles.loadingContainer}>
-                  <ActivityIndicator size="small" color={theme.colors.iconPrimary} />
-                  <Text style={[styles.inputText, { color: theme.colors.textSecondary, marginLeft: 8 }]}>
+                  <ActivityIndicator
+                    size="small"
+                    color={theme.colors.iconPrimary}
+                  />
+                  <Text
+                    style={[
+                      styles.inputText,
+                      { color: theme.colors.textSecondary, marginLeft: 8 },
+                    ]}
+                  >
                     Loading...
                   </Text>
                 </View>
@@ -204,47 +253,49 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
               )}
             </TouchableOpacity>
 
-            {showExpenseTypeDropdown && expenseClaimTypes && expenseClaimTypes.length > 0 && (
-              <View
-                style={[
-                  styles.dropdown,
-                  {
-                    backgroundColor: theme.colors.surfacePrimary,
-                    borderColor: theme.colors.border,
-                  },
-                ]}
-              >
-                {expenseClaimTypes.map((type, index) => (
-                  <TouchableOpacity
-                    key={index}
-                    style={[
-                      styles.dropdownItem,
-                      {
-                        borderBottomColor:
-                          index < expenseClaimTypes.length - 1
-                            ? theme.colors.divider
-                            : "transparent",
-                        borderBottomWidth:
-                          index < expenseClaimTypes.length - 1 ? 1 : 0,
-                      },
-                    ]}
-                    onPress={() => {
-                      setExpenseType(type.name);
-                      setShowExpenseTypeDropdown(false);
-                    }}
-                  >
-                    <Text
+            {showExpenseTypeDropdown &&
+              expenseClaimTypes &&
+              expenseClaimTypes.length > 0 && (
+                <View
+                  style={[
+                    styles.dropdown,
+                    {
+                      backgroundColor: theme.colors.surfacePrimary,
+                      borderColor: theme.colors.border,
+                    },
+                  ]}
+                >
+                  {expenseClaimTypes.map((type, index) => (
+                    <TouchableOpacity
+                      key={index}
                       style={[
-                        styles.dropdownItemText,
-                        { color: theme.colors.textPrimary },
+                        styles.dropdownItem,
+                        {
+                          borderBottomColor:
+                            index < expenseClaimTypes.length - 1
+                              ? theme.colors.divider
+                              : "transparent",
+                          borderBottomWidth:
+                            index < expenseClaimTypes.length - 1 ? 1 : 0,
+                        },
                       ]}
+                      onPress={() => {
+                        setExpenseType(type.name);
+                        setShowExpenseTypeDropdown(false);
+                      }}
                     >
-                      {type.name}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            )}
+                      <Text
+                        style={[
+                          styles.dropdownItemText,
+                          { color: theme.colors.textPrimary },
+                        ]}
+                      >
+                        {type.name}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
           </View>
 
           <View style={styles.fieldContainer}>
@@ -284,7 +335,7 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
               placeholderTextColor={theme.colors.inputPlaceholder}
               keyboardType="numeric"
               value={amount}
-              onChangeText={(text) => setAmount(text.replace(/[^0-9.]/g, ""))}
+              onChangeText={handleAmountChange}
             />
           </View>
 
@@ -305,12 +356,14 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
               placeholderTextColor={theme.colors.inputPlaceholder}
               keyboardType="numeric"
               value={sanctionedAmount}
-              onChangeText={(text) => setSanctionedAmount(text.replace(/[^0-9.]/g, ""))}
+              onChangeText={setSanctionedAmount}
             />
           </View>
 
           <View style={styles.divider}>
-            <Text style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}>
+            <Text
+              style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}
+            >
               Accounting Dimensions
             </Text>
           </View>
@@ -335,8 +388,16 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
             >
               {loadingCostCenters ? (
                 <View style={styles.loadingContainer}>
-                  <ActivityIndicator size="small" color={theme.colors.iconPrimary} />
-                  <Text style={[styles.inputText, { color: theme.colors.textSecondary, marginLeft: 8 }]}>
+                  <ActivityIndicator
+                    size="small"
+                    color={theme.colors.iconPrimary}
+                  />
+                  <Text
+                    style={[
+                      styles.inputText,
+                      { color: theme.colors.textSecondary, marginLeft: 8 },
+                    ]}
+                  >
                     Loading...
                   </Text>
                 </View>
@@ -365,47 +426,49 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
               )}
             </TouchableOpacity>
 
-            {showCostCenterDropdown && costCenters && costCenters.length > 0 && (
-              <View
-                style={[
-                  styles.dropdown,
-                  {
-                    backgroundColor: theme.colors.surfacePrimary,
-                    borderColor: theme.colors.border,
-                  },
-                ]}
-              >
-                {costCenters.map((center, index) => (
-                  <TouchableOpacity
-                    key={index}
-                    style={[
-                      styles.dropdownItem,
-                      {
-                        borderBottomColor:
-                          index < costCenters.length - 1
-                            ? theme.colors.divider
-                            : "transparent",
-                        borderBottomWidth:
-                          index < costCenters.length - 1 ? 1 : 0,
-                      },
-                    ]}
-                    onPress={() => {
-                      setSelectedCostCenter(center.name);
-                      setShowCostCenterDropdown(false);
-                    }}
-                  >
-                    <Text
+            {showCostCenterDropdown &&
+              costCenters &&
+              costCenters.length > 0 && (
+                <View
+                  style={[
+                    styles.dropdown,
+                    {
+                      backgroundColor: theme.colors.surfacePrimary,
+                      borderColor: theme.colors.border,
+                    },
+                  ]}
+                >
+                  {costCenters.map((center, index) => (
+                    <TouchableOpacity
+                      key={index}
                       style={[
-                        styles.dropdownItemText,
-                        { color: theme.colors.textPrimary },
+                        styles.dropdownItem,
+                        {
+                          borderBottomColor:
+                            index < costCenters.length - 1
+                              ? theme.colors.divider
+                              : "transparent",
+                          borderBottomWidth:
+                            index < costCenters.length - 1 ? 1 : 0,
+                        },
                       ]}
+                      onPress={() => {
+                        setSelectedCostCenter(center.name);
+                        setShowCostCenterDropdown(false);
+                      }}
                     >
-                      {center.name}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            )}
+                      <Text
+                        style={[
+                          styles.dropdownItemText,
+                          { color: theme.colors.textPrimary },
+                        ]}
+                      >
+                        {center.name}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
           </View>
 
           <TouchableOpacity

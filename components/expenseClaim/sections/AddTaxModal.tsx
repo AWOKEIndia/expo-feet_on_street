@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -20,6 +20,7 @@ interface AddTaxModalProps {
   onAddTax: (tax: any) => void;
   accessToken: string;
   companyId?: string;
+  baseAmount?: number;
 }
 
 const AddTaxModal: React.FC<AddTaxModalProps> = ({
@@ -28,6 +29,7 @@ const AddTaxModal: React.FC<AddTaxModalProps> = ({
   onAddTax,
   accessToken,
   companyId,
+  baseAmount = 0,
 }) => {
   const { theme } = useTheme();
   const [accountHead, setAccountHead] = useState("");
@@ -52,6 +54,22 @@ const AddTaxModal: React.FC<AddTaxModalProps> = ({
     selectCostCenterByName,
   } = useAccountingData(accessToken, companyId);
 
+    const handleRateChange = (text: string) => {
+  // Allow only numbers and one decimal point
+  const sanitizedText = text.replace(/[^0-9.]/g, '');
+
+  // Ensure only one decimal point
+  if ((sanitizedText.match(/\./g) || []).length <= 1) {
+    setRate(sanitizedText);
+
+    // Auto-calculate amount if base amount exists
+    if (baseAmount > 0 && sanitizedText) {
+      const taxAmount = (baseAmount * parseFloat(sanitizedText)) / 100;
+      setAmount(taxAmount.toFixed(2));
+    }
+  }
+};
+
   const handleAdd = () => {
     if (!accountHead || !amount) {
       return;
@@ -64,6 +82,7 @@ const AddTaxModal: React.FC<AddTaxModalProps> = ({
       description,
       cost_center: costCenter,
       project,
+      base_amount: baseAmount,
     };
 
     onAddTax(tax);
@@ -89,6 +108,14 @@ const AddTaxModal: React.FC<AddTaxModalProps> = ({
     selectCostCenterByName(name);
     setShowCostCenterDropdown(false);
   };
+
+  useEffect(() => {
+    if (baseAmount > 0 && rate) {
+      const taxAmount = (baseAmount * parseFloat(rate)) / 100;
+      const finalAmount = baseAmount + taxAmount;
+      setAmount(finalAmount.toFixed(2));
+    }
+  }, [rate, baseAmount]);
 
   return (
     <Modal
@@ -234,7 +261,7 @@ const AddTaxModal: React.FC<AddTaxModalProps> = ({
               placeholderTextColor={theme.colors.inputPlaceholder}
               keyboardType="numeric"
               value={rate}
-              onChangeText={(text) => setRate(text.replace(/[^0-9.]/g, ""))}
+              onChangeText={handleRateChange}
             />
           </View>
 
@@ -255,7 +282,7 @@ const AddTaxModal: React.FC<AddTaxModalProps> = ({
               placeholderTextColor={theme.colors.inputPlaceholder}
               keyboardType="numeric"
               value={amount}
-              onChangeText={(text) => setAmount(text.replace(/[^0-9.]/g, ""))}
+              editable={false}
             />
           </View>
 
