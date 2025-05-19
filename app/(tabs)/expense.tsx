@@ -15,6 +15,8 @@ import {
   TouchableOpacity,
   View
 } from "react-native";
+import EmployeeAdvanceForm from "@/components/advanceForm/EmployeeAdvanceForm";
+// import { EmployeeAdvanceFormData } from "@/components/expenseClaim/EmployeeAdvanceForm";
 
 export interface ExpenseClaim {
   name: string;
@@ -171,6 +173,8 @@ const useExpenseClaims = () => {
 export default function ExpenseClaimScreen() {
   const { theme, isDark } = useTheme();
   const [showFormModal, setShowFormModal] = useState(false);
+  // Add state for employee advance form modal
+  const [showAdvanceFormModal, setShowAdvanceFormModal] = useState(false);
   const {
     data: expenseClaims,
     loading,
@@ -187,6 +191,18 @@ export default function ExpenseClaimScreen() {
 
   const handleFormCancel = () => {
     setShowFormModal(false);
+  };
+
+  // Handle employee advance form submission
+  const handleAdvanceFormSubmit = (data: any) => {
+    console.log("Advance form submitted with data:", data);
+    setShowAdvanceFormModal(false);
+    refresh();
+  };
+
+  // Handle employee advance form cancellation
+  const handleAdvanceFormCancel = () => {
+    setShowAdvanceFormModal(false);
   };
 
   const getStatusColor = (status: string) => {
@@ -518,6 +534,7 @@ export default function ExpenseClaimScreen() {
                 </Text>
               </View>
             </View>
+            {/* Update the Request Advance button to open the employee advance form modal */}
             <TouchableOpacity
               style={[
                 styles.requestAdvanceButton,
@@ -526,6 +543,7 @@ export default function ExpenseClaimScreen() {
                   borderColor: theme.colors.border,
                 },
               ]}
+              onPress={() => setShowAdvanceFormModal(true)}
             >
               <Text
                 style={[
@@ -540,6 +558,7 @@ export default function ExpenseClaimScreen() {
         </View>
       </ScrollView>
 
+      {/* Expense Claim Form Modal */}
       <Modal
         visible={showFormModal}
         animationType="slide"
@@ -549,6 +568,19 @@ export default function ExpenseClaimScreen() {
         <ExpenseClaimForm
           onSubmit={handleFormSubmit}
           onCancel={handleFormCancel}
+        />
+      </Modal>
+
+      {/* Employee Advance Form Modal */}
+      <Modal
+        visible={showAdvanceFormModal}
+        animationType="slide"
+        transparent={false}
+        onRequestClose={() => setShowAdvanceFormModal(false)}
+      >
+        <EmployeeAdvanceForm
+          onSubmit={handleAdvanceFormSubmit}
+          onCancel={handleAdvanceFormCancel}
         />
       </Modal>
     </SafeAreaView>

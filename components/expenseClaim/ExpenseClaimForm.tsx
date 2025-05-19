@@ -50,6 +50,10 @@ interface ExpenseClaimData {
 const ExpenseClaimForm = ({ navigation }: any) => {
   const { theme } = useTheme();
   const { accessToken, employeeProfile } = useAuthContext();
+  const [expenseAmount, setExpenseAmount] = useState(0);
+
+  // const [amount, setAmount] = useState<string>("");
+  // const [baseAmount, setBaseAmount] = useState<number>(0);
 
   const [activeTab, setActiveTab] = useState<TabType>(TabType.EXPENSES);
   const [expenseClaimData, setExpenseClaimData] = useState<ExpenseClaimData>({
@@ -340,6 +344,7 @@ const ExpenseClaimForm = ({ navigation }: any) => {
         onClose={() => setShowAddExpenseModal(false)}
         onAddExpense={handleAddExpense}
         costCenter={expenseClaimData.cost_center}
+        onTaxAmountChange={(amount) => setExpenseAmount(amount)}
       />
 
       <AddTaxModal
@@ -347,6 +352,7 @@ const ExpenseClaimForm = ({ navigation }: any) => {
         onClose={() => setShowAddTaxModal(false)}
         onAddTax={handleAddTax}
         accessToken={accessToken as string}
+        baseAmount={expenseAmount}
       />
 
       <AlertDialog
