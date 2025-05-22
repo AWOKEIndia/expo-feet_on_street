@@ -6,7 +6,6 @@ import { StatusBar } from "expo-status-bar";
 import React, { useCallback, useState } from "react";
 import {
   ActivityIndicator,
-  Modal,
   RefreshControl,
   SafeAreaView,
   ScrollView,
@@ -16,8 +15,7 @@ import {
   View
 } from "react-native";
 import EmployeeAdvanceForm from "@/components/advanceForm/EmployeeAdvanceForm";
-// import { EmployeeAdvanceFormData } from "@/components/expenseClaim/EmployeeAdvanceForm";
-
+import Modal from "react-native-modal";
 export interface ExpenseClaim {
   name: string;
   employee: string;
@@ -204,6 +202,10 @@ export default function ExpenseClaimScreen() {
   const handleAdvanceFormCancel = () => {
     setShowAdvanceFormModal(false);
   };
+
+  const handleBackPress = () => {
+  setShowFormModal(false);
+};
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -560,10 +562,12 @@ export default function ExpenseClaimScreen() {
 
       {/* Expense Claim Form Modal */}
       <Modal
-        visible={showFormModal}
-        animationType="slide"
-        transparent={false}
-        onRequestClose={() => setShowFormModal(false)}
+        isVisible={showFormModal}
+        animationIn="slideInRight"
+        animationOut="slideOutRight"
+        backdropOpacity={0.5}
+        style={{ margin: 0, justifyContent: "flex-end" }}
+        onBackButtonPress={() => setShowFormModal(false)}
       >
         <ExpenseClaimForm
           onSubmit={handleFormSubmit}
@@ -573,14 +577,16 @@ export default function ExpenseClaimScreen() {
 
       {/* Employee Advance Form Modal */}
       <Modal
-        visible={showAdvanceFormModal}
-        animationType="slide"
-        transparent={false}
-        onRequestClose={() => setShowAdvanceFormModal(false)}
+        isVisible={showAdvanceFormModal}
+        animationIn="slideInRight"
+        animationOut="slideOutRight"
+        backdropOpacity={0.5}
+        style={{ margin: 0, justifyContent: "flex-end" }}
+        onBackButtonPress={handleBackPress}
       >
         <EmployeeAdvanceForm
           onSubmit={handleAdvanceFormSubmit}
-          onCancel={handleAdvanceFormCancel}
+          onCancel={handleBackPress}
         />
       </Modal>
     </SafeAreaView>

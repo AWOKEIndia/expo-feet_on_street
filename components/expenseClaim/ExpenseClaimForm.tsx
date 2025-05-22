@@ -47,13 +47,15 @@ interface ExpenseClaimData {
   cost_center?: string;
 }
 
-const ExpenseClaimForm = ({ navigation }: any) => {
+interface ExpenseClaimFormProps {
+  onSubmit: (data: any) => void;
+  onCancel: () => void;
+}
+
+const ExpenseClaimForm: React.FC<ExpenseClaimFormProps> = ({ onSubmit, onCancel }) => {
   const { theme } = useTheme();
   const { accessToken, employeeProfile } = useAuthContext();
   const [expenseAmount, setExpenseAmount] = useState(0);
-
-  // const [amount, setAmount] = useState<string>("");
-  // const [baseAmount, setBaseAmount] = useState<number>(0);
 
   const [activeTab, setActiveTab] = useState<TabType>(TabType.EXPENSES);
   const [expenseClaimData, setExpenseClaimData] = useState<ExpenseClaimData>({
@@ -163,9 +165,10 @@ const ExpenseClaimForm = ({ navigation }: any) => {
       // Fetch the created expense claim to get all fields
       await fetchExpenseClaim(responseData.data.name);
 
-      showAlert("Success", "Expense claim submitted successfully", "OK", () =>
-        navigation.goBack()
-      );
+      showAlert("Success", "Expense claim submitted successfully", "OK", () => {
+        onSubmit(responseData.data);
+        onCancel();
+      });
     } catch (error) {
       console.error("Error submitting expense claim:", error);
       showAlert(
@@ -229,13 +232,13 @@ const ExpenseClaimForm = ({ navigation }: any) => {
         "Discard",
         () => {
           setAlertVisible(false);
-          navigation.goBack("Expense");
+          onCancel();
         },
         true,
         () => setAlertVisible(false)
       );
     } else {
-      navigation.popTo("expense");
+      onCancel();
     }
   };
 
