@@ -1,6 +1,13 @@
+import EmployeeAdvanceForm from "@/components/advanceForm/EmployeeAdvanceForm";
+import AttendanceRequestForm from "@/components/attendance/attendanceRequest/AttendanceRequestForm";
 import EmpCheckIn from "@/components/EmployeeCheckIn/EmpCheckIn";
+import ExpenseClaimForm from "@/components/expenseClaim/ExpenseClaimForm";
+import LeaveRequestForm from "@/components/leaves/LeaveRequests/LeaveRequestForm";
 import { useTheme } from "@/contexts/ThemeContext";
 import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
+import * as WebBrowser from "expo-web-browser";
+import { useState } from "react";
 import {
   SafeAreaView,
   ScrollView,
@@ -8,27 +15,49 @@ import {
   StyleSheet,
   Text,
   TouchableOpacity,
-  View
+  View,
 } from "react-native";
-import { useRouter } from "expo-router";
-import * as WebBrowser from "expo-web-browser";
-
+import Modal from "react-native-modal";
 
 const quickLinks = [
-  { title: 'Request Attendance', path: '/app/attendance-request/new', icon: 'document-text-outline' },
-  { title: 'Request a Shift', path: '/app/shift-request/new', icon: 'time-outline' },
-  { title: 'Request Leave', path: '/app/leave-application/new', icon: 'calendar-outline' },
-  { title: 'Claim an Expense', path: '/app/expense-claim/new', icon: 'cash-outline' },
-  { title: 'Request an Advance', path: '/app/salary-advance/new', icon: 'cash-outline' },
-  { title: 'View Salary Slips', path: '/app/salary-slip', icon: 'document-text-outline' },
+  {
+    title: "Request a Shift",
+    path: "/app/shift-request/new",
+    icon: "time-outline",
+  },
+  {
+    title: "View Salary Slips",
+    path: "/app/salary-slip",
+    icon: "document-text-outline",
+  },
 ];
-
 
 export default function HomeScreen() {
   const { theme, isDark } = useTheme();
   const router = useRouter();
+  const [showRequestForm, setShowRequestForm] = useState(false);
+  const [showLeaveRequestForm, setShowLeaveRequestForm] = useState(false);
+  const [showExpenseClaimForm, setShowExpenseClaimForm] = useState(false);
+  const [showEmployeeAdvanceForm, setShowEmployeeAdvanceForm] = useState(false);
 
-  const openLink = async (path: string) => {
+  const openLink = async (path: string, title?: string) => {
+    if (title === "Request Attendance") {
+      setShowRequestForm(true);
+      return;
+    }
+    if (title === "Request Leave") {
+      setShowLeaveRequestForm(true);
+      return;
+    }
+    if (title === "Claim an Expense") {
+      setShowExpenseClaimForm(true);
+      return;
+    }
+    if (title === "Request an Advance") {
+      setShowEmployeeAdvanceForm(true);
+      return;
+    }
+    // For other links, open in browser as before
     const fullUrl = `${process.env.EXPO_PUBLIC_BASE_URL}${path}`;
     try {
       const url = new URL(fullUrl);
@@ -45,24 +74,52 @@ export default function HomeScreen() {
     }
   };
 
-// @ts-expect-error
-const QuickLinkItem = ({ icon, title, onPress }) => (
-  <TouchableOpacity
-    style={[styles.quickLinkItem, { borderColor: theme.colors.border }]}
-    onPress={onPress}
-    activeOpacity={0.7}
-  >
-    <View style={styles.quickLinkContent}>
-      <View style={styles.iconContainer}>
-        <Ionicons name={icon} size={20} color={theme.colors.textPrimary} />
+  const handleAttendanceRequestSubmit = (data: any) => {
+    console.log("Attendance request submitted:", data);
+    setShowRequestForm(false);
+  };
+
+  const handleLeaveRequestSubmit = (data: any) => {
+    console.log("Leave request submitted:", data);
+    setShowLeaveRequestForm(false);
+  };
+
+  const handleExpenseClaimSubmit = (data: any) => {
+    console.log("Expense claim submitted:", data);
+    setShowExpenseClaimForm(false);
+  };
+
+  const handleEmployeeAdvanceSubmit = (data: any) => {
+    console.log("Employee advance submitted:", data);
+    setShowEmployeeAdvanceForm(false);
+  };
+
+  // @ts-expect-error
+  const QuickLinkItem = ({ icon, title, onPress }) => (
+    <TouchableOpacity
+      style={[styles.quickLinkItem, { borderColor: theme.colors.border }]}
+      onPress={onPress}
+      activeOpacity={0.7}
+    >
+      <View style={styles.quickLinkContent}>
+        <View style={styles.iconContainer}>
+          <Ionicons name={icon} size={20} color={theme.colors.textPrimary} />
+        </View>
+        <Text
+          style={[styles.quickLinkText, { color: theme.colors.textPrimary }]}
+        >
+          {title}
+        </Text>
       </View>
-      <Text style={[styles.quickLinkText, { color: theme.colors.textPrimary }]}>{title}</Text>
-    </View>
-    <View style={styles.chevronContainer}>
-      <Ionicons name="chevron-forward-outline" size={18} color={theme.colors.textSecondary} />
-    </View>
-  </TouchableOpacity>
-);
+      <View style={styles.chevronContainer}>
+        <Ionicons
+          name="chevron-forward-outline"
+          size={18}
+          color={theme.colors.textSecondary}
+        />
+      </View>
+    </TouchableOpacity>
+  );
 
   return (
     <SafeAreaView
@@ -140,18 +197,94 @@ const QuickLinkItem = ({ icon, title, onPress }) => (
           </Text>
         </TouchableOpacity>
 
-        <View style={[styles.card, { backgroundColor: theme.colors.surfacePrimary, borderColor: theme.colors.border }]}>
-          <Text style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}>Quick Links</Text>
+        <View
+          style={[
+            styles.card,
+            {
+              backgroundColor: theme.colors.surfacePrimary,
+              borderColor: theme.colors.border,
+            },
+          ]}
+        >
+          <Text
+            style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}
+          >
+            Quick Links
+          </Text>
           {quickLinks.map((link) => (
             <QuickLinkItem
               key={link.title}
               icon={link.icon}
               title={link.title}
-              onPress={() => openLink(link.path)}
+              onPress={() => openLink(link.path, link.title)}
             />
           ))}
         </View>
       </ScrollView>
+
+      {/* Attendance Request Form Modal */}
+      <Modal
+        isVisible={showRequestForm}
+        animationIn="slideInRight"
+        animationOut="slideOutRight"
+        backdropOpacity={0.5}
+        style={{ margin: 0, justifyContent: "flex-end" }}
+        onBackdropPress={() => setShowRequestForm(false)}
+        onBackButtonPress={() => setShowRequestForm(false)}
+      >
+        <AttendanceRequestForm
+          onSubmit={handleAttendanceRequestSubmit}
+          onCancel={() => setShowRequestForm(false)}
+        />
+      </Modal>
+
+      {/* Leave Request Form Modal */}
+      <Modal
+        isVisible={showLeaveRequestForm}
+        animationIn="slideInRight"
+        animationOut="slideOutRight"
+        backdropOpacity={0.5}
+        style={{ margin: 0, justifyContent: "flex-end" }}
+        onBackdropPress={() => setShowLeaveRequestForm(false)}
+        onBackButtonPress={() => setShowLeaveRequestForm(false)}
+      >
+        <LeaveRequestForm
+          onSubmit={handleLeaveRequestSubmit}
+          onCancel={() => setShowLeaveRequestForm(false)}
+        />
+      </Modal>
+
+      {/* Expense Claim Form Modal */}
+      <Modal
+        isVisible={showExpenseClaimForm}
+        animationIn="slideInRight"
+        animationOut="slideOutRight"
+        backdropOpacity={0.5}
+        style={{ margin: 0, justifyContent: "flex-end" }}
+        onBackdropPress={() => setShowExpenseClaimForm(false)}
+        onBackButtonPress={() => setShowExpenseClaimForm(false)}
+      >
+        <ExpenseClaimForm
+          onSubmit={handleExpenseClaimSubmit}
+          onCancel={() => setShowExpenseClaimForm(false)}
+        />
+      </Modal>
+
+      {/* Employee Advance Form Modal */}
+      <Modal
+        isVisible={showEmployeeAdvanceForm}
+        animationIn="slideInRight"
+        animationOut="slideOutRight"
+        backdropOpacity={0.5}
+        style={{ margin: 0, justifyContent: "flex-end" }}
+        onBackdropPress={() => setShowEmployeeAdvanceForm(false)}
+        onBackButtonPress={() => setShowEmployeeAdvanceForm(false)}
+      >
+        <EmployeeAdvanceForm
+          onSubmit={handleEmployeeAdvanceSubmit}
+          onCancel={() => setShowEmployeeAdvanceForm(false)}
+        />
+      </Modal>
     </SafeAreaView>
   );
 }
