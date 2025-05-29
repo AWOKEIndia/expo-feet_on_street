@@ -20,16 +20,12 @@ import {
 import Modal from "react-native-modal";
 
 const quickLinks = [
-  {
-    title: "Request a Shift",
-    path: "/app/shift-request/new",
-    icon: "time-outline",
-  },
-  {
-    title: "View Salary Slips",
-    path: "/app/salary-slip",
-    icon: "document-text-outline",
-  },
+  { title: 'Request Attendance', path: '/app/attendance-request/new', icon: 'document-text-outline' },
+  { title: 'Request a Shift', path: '/app/shift-request/new', icon: 'time-outline' },
+  { title: 'Request Leave', path: '/app/leave-application/new', icon: 'calendar-outline' },
+  { title: 'Claim an Expense', path: '/app/expense-claim/new', icon: 'cash-outline' },
+  { title: 'Request an Advance', path: '/app/salary-advance/new', icon: 'cash-outline' },
+  { title: 'View Salary Slips', path: '/app/salary-slip', icon: 'document-text-outline' },
 ];
 
 export default function HomeScreen() {
