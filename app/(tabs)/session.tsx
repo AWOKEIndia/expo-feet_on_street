@@ -46,8 +46,8 @@ export default function ReportScreen() {
   const PAGE_SIZE = 10;
 
   // Filter states
-  const [activeFilter, setActiveFilter] = useState("All");
-  const [activePeriod, setActivePeriod] = useState("Daily");
+  const [activeFilter, setActiveFilter] = useState<"All" | "Sessions" | "Reports">("All");
+  const [activePeriod, setActivePeriod] = useState<"All" | "Daily" | "Weekly" | "Monthly">("All");
 
   // For sticky header
   const scrollY = useRef(new Animated.Value(0)).current;
@@ -190,7 +190,9 @@ export default function ReportScreen() {
     const now = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
-    if (activePeriod === "Daily") {
+    if (activePeriod === "All") {
+      periodFiltered = [...reports];
+    } else if (activePeriod === "Daily") {
       // Filter for today's reports
       periodFiltered = reports.filter((report) => {
         if (!report.date) return false;
@@ -234,11 +236,11 @@ export default function ReportScreen() {
       typeFiltered = periodFiltered;
     } else if (activeFilter === "Sessions") {
       typeFiltered = periodFiltered.filter(
-        (r) => r.participant_count && r.participant_count > 0
+        (r) => r.participant_count !== undefined && r.participant_count > 0
       );
     } else if (activeFilter === "Reports") {
       typeFiltered = periodFiltered.filter(
-        (r) => r.feedback && r.feedback.length > 0
+        (r) => r.feedback && r.feedback.trim().length > 0
       );
     }
 
@@ -261,20 +263,20 @@ export default function ReportScreen() {
         filteredReports.map((r) => r.village).filter(Boolean)
       ).size,
       completedReports: filteredReports.filter(
-        (r) => r.feedback && r.feedback.length > 0
+        (r) => r.feedback && r.feedback.trim().length > 0
       ).length,
     };
   };
 
   // Handle period filter change
-  const handlePeriodChange = (period: string) => {
+  const handlePeriodChange = (period: "All" | "Daily" | "Weekly" | "Monthly") => {
     setActivePeriod(period);
     // Reset pagination when changing filters
     setPage(0);
   };
 
   // Handle type filter change
-  const handleFilterChange = (filter: string) => {
+  const handleFilterChange = (filter: "All" | "Sessions" | "Reports") => {
     setActiveFilter(filter);
     // Reset pagination when changing filters
     setPage(0);
@@ -433,7 +435,7 @@ export default function ReportScreen() {
           color={theme.colors.textSecondary}
         />
         <Text style={[styles.emptyText, { color: theme.colors.textSecondary }]}>
-          No session reports found for the selected period
+          No session reports found for the selected filters
         </Text>
       </View>
     );
@@ -504,7 +506,7 @@ export default function ReportScreen() {
                         activeFilter === filter ? theme.brandColors.primary : "transparent",
                     },
                   ]}
-                  onPress={() => handleFilterChange(filter)}
+                  onPress={() => handleFilterChange(filter as "All" | "Sessions" | "Reports")}
                 >
                   <Text
                     style={[
@@ -564,7 +566,7 @@ export default function ReportScreen() {
                 Report Period:
               </Text>
               <View style={styles.periodToggleButtons}>
-                {["Daily", "Weekly", "Monthly"].map((period) => (
+                {["All", "Daily", "Weekly", "Monthly"].map((period) => (
                   <TouchableOpacity
                     key={period}
                     style={[
@@ -577,7 +579,7 @@ export default function ReportScreen() {
                         borderColor: theme.colors.border,
                       },
                     ]}
-                    onPress={() => handlePeriodChange(period)}
+                    onPress={() => handlePeriodChange(period as "All" | "Daily" | "Weekly" | "Monthly")}
                   >
                     <Text
                       style={[
@@ -712,7 +714,7 @@ export default function ReportScreen() {
                         activeFilter === filter ? theme.brandColors.primary : "transparent",
                     },
                   ]}
-                  onPress={() => handleFilterChange(filter)}
+                  onPress={() => handleFilterChange(filter as "All" | "Sessions" | "Reports")}
                 >
                   <Text
                     style={[
