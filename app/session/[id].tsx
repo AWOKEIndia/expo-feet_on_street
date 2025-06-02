@@ -125,7 +125,7 @@ const SessionReportScreen = () => {
       }
 
       const data = await response.json();
-      console.log("Session details:", JSON.stringify(data, null, 2));
+      // console.log("Session details:", JSON.stringify(data, null, 2));
 
       setSessionData(data.data || data);
     } catch (error) {
@@ -758,8 +758,9 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   photoContainer: {
-    width: screenWidth,
-    paddingHorizontal: 16,
+    width: screenWidth - 64,
+    marginRight: 32,
+    marginLeft: -1,
     alignItems: 'center',
   },
   sessionPhoto: {
