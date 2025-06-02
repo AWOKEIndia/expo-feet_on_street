@@ -1,6 +1,6 @@
 import EmployeeAdvanceForm from "@/components/advanceForm/EmployeeAdvanceForm";
 import AttendanceRequestForm from "@/components/attendance/attendanceRequest/AttendanceRequestForm";
-import EmpCheckIn from "@/components/EmployeeCheckIn/EmpCheckIn";
+import EmpCheckIn from "@/components/employeeCheckIn/EmpCheckIn";
 import ExpenseClaimForm from "@/components/expenseClaim/ExpenseClaimForm";
 import LeaveRequestForm from "@/components/leaves/LeaveRequests/LeaveRequestForm";
 import { useTheme } from "@/contexts/ThemeContext";
