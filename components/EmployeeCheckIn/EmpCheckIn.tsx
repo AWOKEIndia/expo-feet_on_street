@@ -13,6 +13,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useAuthContext } from "@/contexts/AuthContext";
 import { useTheme } from "@/contexts/ThemeContext";
 import CheckInConfirmationModal from "./CheckInConfirmationModal";
+import CheckOutConfirmationModal from "./CheckOutConfirmationModal";
 import HistoryModal from "./HistoryModal";
 import DetailsModal from "./DetailsModal";
 
@@ -33,8 +34,9 @@ const EmployeeCheckInCheckOut = () => {
   const [userName, setUserName] = useState<string>("");
   const [employee_field_value, setEmployeeFieldValue] = useState<string>("");
 
-  // Confirmation modal state
-  const [confirmModalVisible, setConfirmModalVisible] = useState(false);
+  // Confirmation modals state
+  const [checkInModalVisible, setCheckInModalVisible] = useState(false);
+  const [checkOutModalVisible, setCheckOutModalVisible] = useState(false);
   const [fetchingLocation, setFetchingLocation] = useState(false);
   const [locationError, setLocationError] = useState<string | null>(null);
 
@@ -181,18 +183,11 @@ const EmployeeCheckInCheckOut = () => {
 
   const initiateCheckInOut = async () => {
     if (isCheckedIn) {
-      // For check-out, get location immediately
-      setLoading(true);
-      const currentLocation = await getCurrentLocation();
-      if (currentLocation) {
-        setLocation(currentLocation);
-        handleCheckInOut();
-      } else {
-        setLoading(false);
-      }
+      // For check-out, open confirmation modal
+      setCheckOutModalVisible(true);
     } else {
-      // For check-in, open modal to confirm
-      setConfirmModalVisible(true);
+      // For check-in, open confirmation modal
+      setCheckInModalVisible(true);
     }
   };
 
@@ -201,8 +196,7 @@ const EmployeeCheckInCheckOut = () => {
     const logType = isCheckedIn ? "OUT" : "IN";
 
     try {
-      // If we're checking in, use the location from the modal
-      // If we're checking out, use the location we just fetched
+      // Use the location from the modal or fetch fresh location
       const currentLocation = location || await getCurrentLocation();
 
       if (!currentLocation) {
@@ -239,7 +233,8 @@ const EmployeeCheckInCheckOut = () => {
 
       setStatus(`${logType === "IN" ? "Check-in" : "Check-out"} successful!`);
       fetchLastLog();
-      setConfirmModalVisible(false);
+      setCheckInModalVisible(false);
+      setCheckOutModalVisible(false);
     } catch (error: any) {
       console.error("Check-in/out failed", error);
       setStatus(`Failed to log time: ${error.message}`);
@@ -320,13 +315,13 @@ const EmployeeCheckInCheckOut = () => {
 
         <TouchableOpacity
           onPress={initiateCheckInOut}
-          disabled={isCheckedIn ? fetchingLocation || loading : false}
+          disabled={loading}
           style={[
             styles.button,
             { backgroundColor: theme.colors.buttonPrimary },
           ]}
         >
-          {isCheckedIn && (fetchingLocation || loading) ? (
+          {loading ? (
             <ActivityIndicator color="#fff" />
           ) : (
             <View style={styles.buttonContent}>
@@ -364,10 +359,22 @@ const EmployeeCheckInCheckOut = () => {
 
       {/* Check-in Confirmation Modal */}
       <CheckInConfirmationModal
-        visible={confirmModalVisible}
+        visible={checkInModalVisible}
         loading={loading}
-        onClose={() => setConfirmModalVisible(false)}
+        onClose={() => setCheckInModalVisible(false)}
         onConfirm={(loc) => {
+          setLocation(loc);
+          handleCheckInOut();
+        }}
+        theme={theme}
+      />
+
+      {/* Check-out Confirmation Modal */}
+      <CheckOutConfirmationModal
+        visible={checkOutModalVisible}
+        loading={loading}
+        onClose={() => setCheckOutModalVisible(false)}
+        onConfirm={(loc :any) => {
           setLocation(loc);
           handleCheckInOut();
         }}
