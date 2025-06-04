@@ -18,6 +18,8 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import * as FileSystem from 'expo-file-system';
+import * as IntentLauncher from 'expo-intent-launcher';
 
 interface CFLSession {
   employee: string;
@@ -44,6 +46,7 @@ export default function ReportScreen() {
   const [loading, setLoading] = useState(false);
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(true);
+  const [downloading, setDownloading] = useState<string | null>(null);
   const PAGE_SIZE = 10;
 
   // Filter states
@@ -112,10 +115,6 @@ export default function ReportScreen() {
       }
 
       const data = await response.json();
-      // console.log(
-      //   "Response data:",
-      //   JSON.stringify(data).substring(0, 200) + "..."
-      // );
       const newReports = data.data || [];
 
       if (pageNumber === 0) {
@@ -138,6 +137,49 @@ export default function ReportScreen() {
     }
   };
 
+  // Function to download PDF
+const downloadPDF = async (sessionName: string) => {
+    try {
+      setDownloading(sessionName);
+
+      const pdfUrl = `${process.env.EXPO_PUBLIC_BASE_URL}/api/method/frappe.utils.weasyprint.download_pdf?doctype=CFL+Session&name=${encodeURIComponent(sessionName)}&print_format=Report&letterhead=No+Letterhead`;
+
+      // First, download the file
+      const downloadResumable = FileSystem.createDownloadResumable(
+        pdfUrl,
+        FileSystem.documentDirectory + `${sessionName}.pdf`,
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        }
+      );
+
+      const downloadResult = await downloadResumable.downloadAsync();
+      if (!downloadResult || !downloadResult.uri) {
+        throw new Error('Failed to download PDF file.');
+      }
+      const { uri } = downloadResult;
+
+      // Open the PDF in the system viewer
+      await FileSystem.getContentUriAsync(uri).then((contentUri) => {
+        IntentLauncher.startActivityAsync('android.intent.action.VIEW', {
+          data: contentUri,
+          flags: 1,
+          type: 'application/pdf',
+        });
+      });
+
+    } catch (error) {
+      console.error('Download failed:', error);
+      Alert.alert(
+        'Download Error',
+        'Failed to download the PDF. Please try again later.'
+      );
+    } finally {
+      setDownloading(null);
+    }
+  };
   // Initial fetch
   useEffect(() => {
     fetchReports();
@@ -435,20 +477,28 @@ export default function ReportScreen() {
             styles.actionButton,
             { backgroundColor: theme.statusColors.success + "15" },
           ]}
+          onPress={() => downloadPDF(item.name)}
+          disabled={downloading === item.name}
         >
-          <Ionicons
-            name="cloud-download-outline"
-            size={16}
-            color={theme.statusColors.success}
-          />
-          <Text
-            style={[
-              styles.actionButtonText,
-              { color: theme.statusColors.success },
-            ]}
-          >
-            Download PDF
-          </Text>
+          {downloading === item.name ? (
+            <ActivityIndicator size="small" color={theme.statusColors.success} />
+          ) : (
+            <>
+              <Ionicons
+                name="cloud-download-outline"
+                size={16}
+                color={theme.statusColors.success}
+              />
+              <Text
+                style={[
+                  styles.actionButtonText,
+                  { color: theme.statusColors.success },
+                ]}
+              >
+                Download PDF
+              </Text>
+            </>
+          )}
         </TouchableOpacity>
 
         <TouchableOpacity
