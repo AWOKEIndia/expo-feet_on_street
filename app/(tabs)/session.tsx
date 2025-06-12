@@ -18,15 +18,15 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import * as FileSystem from 'expo-file-system';
-import * as IntentLauncher from 'expo-intent-launcher';
+import * as FileSystem from "expo-file-system";
+import * as IntentLauncher from "expo-intent-launcher";
 
 interface CFLSession {
   employee: string;
   name: string;
-  trainer_name?: string;
-  date?: string;
-  participant_count?: number;
+  owner?: string;
+  creation?: string;
+  participants?: number;
   feedback?: string;
   village?: string;
   block?: string;
@@ -76,15 +76,26 @@ export default function ReportScreen() {
 
       const fields = [
         "name",
-        "employee",
-        "cfl_center",
-        "trainer_name",
-        "date",
-        "participant_count",
+        "owner",
+        "creation",
+        "modified",
+        "modified_by",
+        "docstatus",
+        "idx",
+        "participants",
+        "head_count",
+        "males",
+        "females",
         "village",
+        "block",
+        "cfl_center",
         "district",
-        "feedback",
-        "status",
+        "region",
+        "company",
+        "session_image_1",
+        "session_image_2",
+        "participant_list_image_1",
+        "doctype",
       ];
 
       const params = new URLSearchParams({
@@ -138,11 +149,15 @@ export default function ReportScreen() {
   };
 
   // Function to download PDF
-const downloadPDF = async (sessionName: string) => {
+  const downloadPDF = async (sessionName: string) => {
     try {
       setDownloading(sessionName);
 
-      const pdfUrl = `${process.env.EXPO_PUBLIC_BASE_URL}/api/method/frappe.utils.weasyprint.download_pdf?doctype=CFL+Session&name=${encodeURIComponent(sessionName)}&print_format=Report&letterhead=No+Letterhead`;
+      const pdfUrl = `${
+        process.env.EXPO_PUBLIC_BASE_URL
+      }/api/method/frappe.utils.weasyprint.download_pdf?doctype=CFL+Session&name=${encodeURIComponent(
+        sessionName
+      )}&print_format=Report&letterhead=No+Letterhead`;
 
       // First, download the file
       const downloadResumable = FileSystem.createDownloadResumable(
@@ -157,24 +172,23 @@ const downloadPDF = async (sessionName: string) => {
 
       const downloadResult = await downloadResumable.downloadAsync();
       if (!downloadResult || !downloadResult.uri) {
-        throw new Error('Failed to download PDF file.');
+        throw new Error("Failed to download PDF file.");
       }
       const { uri } = downloadResult;
 
       // Open the PDF in the system viewer
       await FileSystem.getContentUriAsync(uri).then((contentUri) => {
-        IntentLauncher.startActivityAsync('android.intent.action.VIEW', {
+        IntentLauncher.startActivityAsync("android.intent.action.VIEW", {
           data: contentUri,
           flags: 1,
-          type: 'application/pdf',
+          type: "application/pdf",
         });
       });
-
     } catch (error) {
-      console.error('Download failed:', error);
+      console.error("Download failed:", error);
       Alert.alert(
-        'Download Error',
-        'Failed to download the PDF. Please try again later.'
+        "Download Error",
+        "Failed to download the PDF. Please try again later."
       );
     } finally {
       setDownloading(null);
@@ -243,8 +257,8 @@ const downloadPDF = async (sessionName: string) => {
     } else if (activePeriod === "Daily") {
       // Filter for today's reports
       periodFiltered = reports.filter((report) => {
-        if (!report.date) return false;
-        const reportDate = new Date(report.date);
+        if (!report.creation) return false;
+        const reportDate = new Date(report.creation);
         return (
           reportDate.getFullYear() === today.getFullYear() &&
           reportDate.getMonth() === today.getMonth() &&
@@ -262,7 +276,7 @@ const downloadPDF = async (sessionName: string) => {
       endOfWeek.setHours(23, 59, 59, 999);
 
       periodFiltered = reports.filter((report) =>
-        isDateInRange(report.date, startOfWeek, endOfWeek)
+        isDateInRange(report.creation, startOfWeek, endOfWeek)
       );
     } else if (activePeriod === "Monthly") {
       // Start of the current month
@@ -273,7 +287,7 @@ const downloadPDF = async (sessionName: string) => {
       endOfMonth.setHours(23, 59, 59, 999);
 
       periodFiltered = reports.filter((report) =>
-        isDateInRange(report.date, startOfMonth, endOfMonth)
+        isDateInRange(report.creation, startOfMonth, endOfMonth)
       );
     }
 
@@ -284,7 +298,7 @@ const downloadPDF = async (sessionName: string) => {
       typeFiltered = periodFiltered;
     } else if (activeFilter === "Sessions") {
       typeFiltered = periodFiltered.filter(
-        (r) => r.participant_count !== undefined && r.participant_count > 0
+        (r) => r.participants !== undefined && r.participants > 0
       );
     } else if (activeFilter === "Reports") {
       typeFiltered = periodFiltered.filter(
@@ -304,7 +318,7 @@ const downloadPDF = async (sessionName: string) => {
     return {
       totalReports: filteredReports.length,
       totalParticipants: filteredReports.reduce(
-        (sum, r) => sum + (r.participant_count || 0),
+        (sum, r) => sum + (r.participants || 0),
         0
       ),
       uniqueVillages: new Set(
@@ -376,8 +390,8 @@ const downloadPDF = async (sessionName: string) => {
           <Text
             style={[styles.reportType, { color: theme.colors.textPrimary }]}
           >
-            {item.trainer_name
-              ? `Session by ${item.trainer_name}`
+            {item.owner
+              ? `Session by ${item.owner}`
               : "CFL Session"}
           </Text>
         </View>
@@ -416,7 +430,7 @@ const downloadPDF = async (sessionName: string) => {
               { color: theme.colors.textSecondary },
             ]}
           >
-            {formatDate(item.date)}
+            {formatDate(item.creation)}
           </Text>
         </View>
         <View style={styles.reportInfoItem}>
@@ -449,7 +463,7 @@ const downloadPDF = async (sessionName: string) => {
               { color: theme.colors.textSecondary },
             ]}
           >
-            {item.participant_count || 0} participants
+            {item.participants || 0} participants
           </Text>
         </View>
       </View>
@@ -481,7 +495,10 @@ const downloadPDF = async (sessionName: string) => {
           disabled={downloading === item.name}
         >
           {downloading === item.name ? (
-            <ActivityIndicator size="small" color={theme.statusColors.success} />
+            <ActivityIndicator
+              size="small"
+              color={theme.statusColors.success}
+            />
           ) : (
             <>
               <Ionicons
@@ -532,7 +549,10 @@ const downloadPDF = async (sessionName: string) => {
 
     return (
       <View style={styles.footerLoader}>
-        <ActivityIndicator size="small" color={theme.brandColors.primaryLight} />
+        <ActivityIndicator
+          size="small"
+          color={theme.brandColors.primaryLight}
+        />
         <Text
           style={[styles.loadingText, { color: theme.colors.textSecondary }]}
         >

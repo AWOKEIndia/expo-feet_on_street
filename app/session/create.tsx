@@ -18,7 +18,7 @@ import {
   View,
 } from "react-native";
 import { useAuth } from "@/hooks/useAuth";
-import * as ImagePicker from 'expo-image-picker';
+import * as ImagePicker from "expo-image-picker";
 
 const CreateSessionReport = () => {
   const navigation = useNavigation();
@@ -42,9 +42,13 @@ const CreateSessionReport = () => {
     trainer_name: "",
     date: new Date(),
     participant_count: "",
+    head_count: "",
+    no_of_males: "",
+    no_of_females: "",
     status: "Draft",
     feedback: "",
     employee: "",
+    employee_id: "",
     village: "",
     block: "",
     cfl_center: "To be auto-filled",
@@ -80,6 +84,7 @@ const CreateSessionReport = () => {
       setFormData((prevData) => ({
         ...prevData,
         employee: employeeProfile.name,
+        employee_id: employeeProfile.employee_id || "",
         trainer_name: employeeProfile.employee_name,
       }));
       setDisableOnFetch(true);
@@ -99,8 +104,7 @@ const CreateSessionReport = () => {
         const index = params.imageIndex as number;
         const uri = params.capturedPhotoUri as string;
 
-        // Verify that the URI is valid and accessible
-        if (uri && uri.startsWith('file://')) {
+        if (uri && uri.startsWith("file://")) {
           if (type === "session") {
             const updatedImages = [...sessionImages];
             updatedImages[index] = { uri };
@@ -111,7 +115,6 @@ const CreateSessionReport = () => {
             setParticipantImages(updatedImages);
           }
 
-          // Clear the params to avoid processing the same photo again
           navigation.getParent()?.setParams({
             capturedPhotoUri: undefined,
             imageType: undefined,
@@ -128,6 +131,19 @@ const CreateSessionReport = () => {
     setFormData({ ...formData, [field]: value });
   };
 
+  useEffect(() => {
+    const males = parseInt(formData.no_of_males) || 0;
+    const females = parseInt(formData.no_of_females) || 0;
+    const totalHeadCount = males + females;
+
+    if (totalHeadCount > 0) {
+      setFormData((prevData) => ({
+        ...prevData,
+        head_count: totalHeadCount.toString(),
+      }));
+    }
+  }, [formData.no_of_males, formData.no_of_females]);
+
   const onDateChange = (event: any, selectedDate?: Date) => {
     setShowDatePicker(Platform.OS === "ios");
     if (selectedDate) {
@@ -140,9 +156,9 @@ const CreateSessionReport = () => {
     index: number
   ) => {
     try {
-      // Request permission if needed
-      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (status !== 'granted') {
+      const { status } =
+        await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== "granted") {
         Alert.alert(
           "Permission Required",
           "We need gallery access to select photos"
@@ -150,7 +166,6 @@ const CreateSessionReport = () => {
         return;
       }
 
-      // Launch image picker
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: false,
@@ -232,6 +247,21 @@ const CreateSessionReport = () => {
       return;
     }
 
+    if (!formData.head_count) {
+      Alert.alert("Missing Information", "Please enter the head count");
+      return;
+    }
+
+    if (!formData.no_of_males) {
+      Alert.alert("Missing Information", "Please enter the number of males");
+      return;
+    }
+
+    if (!formData.no_of_females) {
+      Alert.alert("Missing Information", "Please enter the number of females");
+      return;
+    }
+
     if (!formData.employee) {
       Alert.alert("Missing Information", "Please select an employee");
       return;
@@ -291,6 +321,7 @@ const CreateSessionReport = () => {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
+        {/* Employee Information Section */}
         <View
           style={[
             styles.formCard,
@@ -301,10 +332,70 @@ const CreateSessionReport = () => {
           ]}
         >
           <Text style={[styles.formTitle, { color: theme.colors.textPrimary }]}>
-            Session Information
+            Employee Information
           </Text>
 
           <View style={styles.formSection}>
+            <View style={styles.formRow}>
+              <View style={styles.formField}>
+                <Text
+                  style={[
+                    styles.fieldLabel,
+                    { color: theme.colors.textSecondary },
+                  ]}
+                >
+                  Employee Name
+                </Text>
+                <TextInput
+                  style={[
+                    styles.textInput,
+                    {
+                      borderColor: theme.colors.border,
+                      color: theme.colors.textPrimary,
+                      backgroundColor: !disableOnFetch
+                        ? theme.colors.surfacePrimary
+                        : theme.colors.backgroundAlt,
+                    },
+                  ]}
+                  placeholder="Employee name"
+                  placeholderTextColor={theme.colors.textTertiary}
+                  value={formData.employee}
+                  editable={!disableOnFetch}
+                  onChangeText={(text) => handleInputChange("employee", text)}
+                />
+              </View>
+
+              <View style={styles.formField}>
+                <Text
+                  style={[
+                    styles.fieldLabel,
+                    { color: theme.colors.textSecondary },
+                  ]}
+                >
+                  Employee ID
+                </Text>
+                <TextInput
+                  style={[
+                    styles.textInput,
+                    {
+                      borderColor: theme.colors.border,
+                      color: theme.colors.textPrimary,
+                      backgroundColor: !disableOnFetch
+                        ? theme.colors.surfacePrimary
+                        : theme.colors.backgroundAlt,
+                    },
+                  ]}
+                  placeholder="Employee ID"
+                  placeholderTextColor={theme.colors.textTertiary}
+                  value={formData.employee_id}
+                  editable={!disableOnFetch}
+                  onChangeText={(text) =>
+                    handleInputChange("employee_id", text)
+                  }
+                />
+              </View>
+            </View>
+
             <View style={styles.formRow}>
               <View style={styles.formField}>
                 <Text
@@ -326,7 +417,7 @@ const CreateSessionReport = () => {
                         : theme.colors.backgroundAlt,
                     },
                   ]}
-                  placeholder="Enter trainer name"
+                  placeholder="Trainer name"
                   placeholderTextColor={theme.colors.textTertiary}
                   value={formData.trainer_name}
                   editable={!disableOnFetch}
@@ -375,67 +466,24 @@ const CreateSessionReport = () => {
                 )}
               </View>
             </View>
+          </View>
+        </View>
 
-            <View style={styles.formRow}>
-              <View style={styles.formField}>
-                <Text
-                  style={[
-                    styles.fieldLabel,
-                    { color: theme.colors.textSecondary },
-                  ]}
-                >
-                  Participant Count{" "}
-                  <Text style={{ color: theme.statusColors.error }}>*</Text>
-                </Text>
-                <TextInput
-                  style={[
-                    styles.textInput,
-                    {
-                      borderColor: theme.colors.border,
-                      color: theme.colors.textPrimary,
-                      backgroundColor: theme.colors.surfacePrimary,
-                    },
-                  ]}
-                  placeholder="No. of participants"
-                  placeholderTextColor={theme.colors.textTertiary}
-                  keyboardType="numeric"
-                  value={formData.participant_count}
-                  onChangeText={(text) =>
-                    handleInputChange("participant_count", text)
-                  }
-                />
-              </View>
+        {/* Session Information Section */}
+        <View
+          style={[
+            styles.formCard,
+            {
+              backgroundColor: theme.colors.surfacePrimary,
+              ...theme.shadows.sm,
+            },
+          ]}
+        >
+          <Text style={[styles.formTitle, { color: theme.colors.textPrimary }]}>
+            Session Information
+          </Text>
 
-              <View style={styles.formField}>
-                <Text
-                  style={[
-                    styles.fieldLabel,
-                    { color: theme.colors.textSecondary },
-                  ]}
-                >
-                  Employee
-                  <Text style={{ color: theme.statusColors.error }}>*</Text>
-                </Text>
-                <TextInput
-                  style={[
-                    styles.textInput,
-                    {
-                      borderColor: theme.colors.border,
-                      color: theme.colors.textPrimary,
-                      backgroundColor: !disableOnFetch
-                        ? theme.colors.surfacePrimary
-                        : theme.colors.backgroundAlt,
-                    },
-                  ]}
-                  placeholder="Select employee"
-                  placeholderTextColor={theme.colors.textTertiary}
-                  value={formData.employee}
-                  editable={!disableOnFetch}
-                  onChangeText={(text) => handleInputChange("employee", text)}
-                />
-              </View>
-            </View>
-
+          <View style={styles.formSection}>
             <View style={styles.formRow}>
               <View style={styles.formField}>
                 <Text
@@ -490,6 +538,126 @@ const CreateSessionReport = () => {
               </View>
             </View>
 
+            <View style={styles.formRow}>
+              <View style={styles.formField}>
+                <Text
+                  style={[
+                    styles.fieldLabel,
+                    { color: theme.colors.textSecondary },
+                  ]}
+                >
+                  No of Participants{" "}
+                  <Text style={{ color: theme.statusColors.error }}>*</Text>
+                </Text>
+                <TextInput
+                  style={[
+                    styles.textInput,
+                    {
+                      borderColor: theme.colors.border,
+                      color: theme.colors.textPrimary,
+                      backgroundColor: theme.colors.surfacePrimary,
+                    },
+                  ]}
+                  placeholder="No. of participants"
+                  placeholderTextColor={theme.colors.textTertiary}
+                  keyboardType="numeric"
+                  value={formData.participant_count}
+                  onChangeText={(text) =>
+                    handleInputChange("participant_count", text)
+                  }
+                />
+              </View>
+
+              <View style={styles.formField}>
+                <Text
+                  style={[
+                    styles.fieldLabel,
+                    { color: theme.colors.textSecondary },
+                  ]}
+                >
+                  Head Count{" "}
+                  <Text style={{ color: theme.statusColors.error }}>*</Text>
+                </Text>
+                <TextInput
+                  style={[
+                    styles.textInput,
+                    {
+                      borderColor: theme.colors.border,
+                      color: theme.colors.textPrimary,
+                      backgroundColor: theme.colors.surfacePrimary,
+                    },
+                  ]}
+                  placeholder="Auto-calculated"
+                  placeholderTextColor={theme.colors.textTertiary}
+                  keyboardType="numeric"
+                  value={formData.head_count}
+                  onChangeText={(text) => handleInputChange("head_count", text)}
+                />
+              </View>
+            </View>
+
+            <View style={styles.formSection}>
+              <View style={styles.formRow}>
+                <View style={styles.formField}>
+                  <Text
+                    style={[
+                      styles.fieldLabel,
+                      { color: theme.colors.textSecondary },
+                    ]}
+                  >
+                    No. of Males{" "}
+                    <Text style={{ color: theme.statusColors.error }}>*</Text>
+                  </Text>
+                  <TextInput
+                    style={[
+                      styles.textInput,
+                      {
+                        borderColor: theme.colors.border,
+                        color: theme.colors.textPrimary,
+                        backgroundColor: theme.colors.surfacePrimary,
+                      },
+                    ]}
+                    placeholder="Enter male count"
+                    placeholderTextColor={theme.colors.textTertiary}
+                    keyboardType="numeric"
+                    value={formData.no_of_males}
+                    onChangeText={(text) =>
+                      handleInputChange("no_of_males", text)
+                    }
+                  />
+                </View>
+
+                <View style={styles.formField}>
+                  <Text
+                    style={[
+                      styles.fieldLabel,
+                      { color: theme.colors.textSecondary },
+                    ]}
+                  >
+                    No. of Females{" "}
+                    <Text style={{ color: theme.statusColors.error }}>*</Text>
+                  </Text>
+                  <TextInput
+                    style={[
+                      styles.textInput,
+                      {
+                        borderColor: theme.colors.border,
+                        color: theme.colors.textPrimary,
+                        backgroundColor: theme.colors.surfacePrimary,
+                      },
+                    ]}
+                    placeholder="Enter female count"
+                    placeholderTextColor={theme.colors.textTertiary}
+                    keyboardType="numeric"
+                    value={formData.no_of_females}
+                    onChangeText={(text) =>
+                      handleInputChange("no_of_females", text)
+                    }
+                  />
+                </View>
+              </View>
+            </View>
+
             <View style={styles.fullWidthField}>
               <Text
                 style={[
@@ -520,6 +688,7 @@ const CreateSessionReport = () => {
           </View>
         </View>
 
+        {/* Session Images Section */}
         <View style={styles.sectionContainer}>
           <Text
             style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}
@@ -583,6 +752,7 @@ const CreateSessionReport = () => {
           </View>
         </View>
 
+        {/* Participant List Section */}
         <View style={styles.sectionContainer}>
           <Text
             style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}
@@ -646,6 +816,7 @@ const CreateSessionReport = () => {
           </View>
         </View>
 
+        {/* Geographical Information Section */}
         <View
           style={[
             styles.formCard,
@@ -916,7 +1087,7 @@ const styles = StyleSheet.create({
   },
   fullWidthField: {
     width: "100%",
-    marginBottom: 12,
+
   },
   textAreaInput: {
     borderWidth: 1,

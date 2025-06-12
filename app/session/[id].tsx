@@ -23,9 +23,8 @@ const { width: screenWidth } = Dimensions.get("window");
 interface CFLSessionDetail {
   name: string;
   employee: string;
-  trainer_name?: string;
-  date?: string;
-  participant_count?: number;
+  owner?: string;
+  participants?: number;
   feedback?: string;
   village?: string;
   block?: string;
@@ -437,13 +436,13 @@ const renderPhotoGallery = () => {
             <View style={styles.metaItem}>
               <Ionicons name="calendar-outline" size={14} color={theme.colors.textInverted} />
               <Text style={[styles.metaText, { color: theme.colors.textInverted }]}>
-                {formatDate(sessionData.date)}
+                {formatDate(sessionData.creation)}
               </Text>
             </View>
             <View style={styles.metaItem}>
               <Ionicons name="people-outline" size={14} color={theme.colors.textInverted} />
               <Text style={[styles.metaText, { color: theme.colors.textInverted }]}>
-                {sessionData.participant_count || 0} participants
+                {sessionData.participants || 0} participants
               </Text>
             </View>
           </View>
@@ -456,7 +455,7 @@ const renderPhotoGallery = () => {
         {renderInfoSection("Basic Information", "information-circle-outline", (
           <>
             {renderInfoRow("Session ID", sessionData.name, "bookmark-outline")}
-            {renderInfoRow("Trainer", sessionData.trainer_name, "person-outline")}
+            {renderInfoRow("Trainer", sessionData.owner, "person-outline")}
             {renderInfoRow("Duration", sessionData.session_duration, "time-outline")}
             {renderInfoRow("Attendance Rate", sessionData.attendance_rate ? `${sessionData.attendance_rate}%` : undefined, "checkmark-circle-outline")}
           </>
