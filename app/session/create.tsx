@@ -41,20 +41,19 @@ const CreateSessionReport = () => {
   const [formData, setFormData] = useState({
     trainer_name: "",
     date: new Date(),
-    participant_count: "",
+    participants: "",
     head_count: "",
     no_of_males: "",
     no_of_females: "",
-    status: "Draft",
     feedback: "",
     employee: "",
     employee_id: "",
     village: "",
     block: "",
-    cfl_center: "To be auto-filled",
-    district: "To be auto-filled",
-    region: "To be auto-filled",
-    state: "To be auto-filled",
+    cfl_center: "",
+    district: "",
+    region: "",
+    state: "",
   });
 
   useEffect(() => {
@@ -83,8 +82,8 @@ const CreateSessionReport = () => {
     if (employeeProfile) {
       setFormData((prevData) => ({
         ...prevData,
-        employee: employeeProfile.name,
-        employee_id: employeeProfile.employee_id || "",
+        employee: employeeProfile.employee_name,
+        employee_id: employeeProfile.name || "",
         trainer_name: employeeProfile.employee_name,
       }));
       setDisableOnFetch(true);
@@ -131,18 +130,6 @@ const CreateSessionReport = () => {
     setFormData({ ...formData, [field]: value });
   };
 
-  useEffect(() => {
-    const males = parseInt(formData.no_of_males) || 0;
-    const females = parseInt(formData.no_of_females) || 0;
-    const totalHeadCount = males + females;
-
-    if (totalHeadCount > 0) {
-      setFormData((prevData) => ({
-        ...prevData,
-        head_count: totalHeadCount.toString(),
-      }));
-    }
-  }, [formData.no_of_males, formData.no_of_females]);
 
   const onDateChange = (event: any, selectedDate?: Date) => {
     setShowDatePicker(Platform.OS === "ios");
@@ -242,7 +229,7 @@ const CreateSessionReport = () => {
       return;
     }
 
-    if (!formData.participant_count) {
+    if (!formData.participants) {
       Alert.alert("Missing Information", "Please enter the participant count");
       return;
     }
@@ -288,10 +275,6 @@ const CreateSessionReport = () => {
       return;
     }
 
-    if (!formData.block) {
-      Alert.alert("Missing Information", "Please select a block");
-      return;
-    }
 
     const submissionData = {
       ...formData,
@@ -300,9 +283,9 @@ const CreateSessionReport = () => {
       session_image_2: sessionImages[1]?.uri,
       session_image_3: sessionImages[2]?.uri,
       session_image_4: sessionImages[3]?.uri,
-      participant_list_page_1: participantImages[0]?.uri,
-      participant_list_page_2: participantImages[1]?.uri,
-      participant_list_page_3: participantImages[2]?.uri,
+      participant_list_image_1: participantImages[0]?.uri,
+      participant_list_image_2: participantImages[1]?.uri,
+      participant_list_image_3: participantImages[2]?.uri,
     };
 
     console.log("Submitting data:", submissionData);
@@ -484,58 +467,30 @@ const CreateSessionReport = () => {
           </Text>
 
           <View style={styles.formSection}>
-            <View style={styles.formRow}>
-              <View style={styles.formField}>
-                <Text
-                  style={[
-                    styles.fieldLabel,
-                    { color: theme.colors.textSecondary },
-                  ]}
-                >
-                  Village{" "}
-                  <Text style={{ color: theme.statusColors.error }}>*</Text>
-                </Text>
-                <TextInput
-                  style={[
-                    styles.textInput,
-                    {
-                      borderColor: theme.colors.border,
-                      color: theme.colors.textPrimary,
-                      backgroundColor: theme.colors.surfacePrimary,
-                    },
-                  ]}
-                  placeholder="Enter village name"
-                  placeholderTextColor={theme.colors.textTertiary}
-                  value={formData.village}
-                  onChangeText={(text) => handleInputChange("village", text)}
-                />
-              </View>
-
-              <View style={styles.formField}>
-                <Text
-                  style={[
-                    styles.fieldLabel,
-                    { color: theme.colors.textSecondary },
-                  ]}
-                >
-                  Block{" "}
-                  <Text style={{ color: theme.statusColors.error }}>*</Text>
-                </Text>
-                <TextInput
-                  style={[
-                    styles.textInput,
-                    {
-                      borderColor: theme.colors.border,
-                      color: theme.colors.textPrimary,
-                      backgroundColor: theme.colors.surfacePrimary,
-                    },
-                  ]}
-                  placeholder="Select block"
-                  placeholderTextColor={theme.colors.textTertiary}
-                  value={formData.block}
-                  onChangeText={(text) => handleInputChange("block", text)}
-                />
-              </View>
+            <View style={styles.fullWidthField}>
+              <Text
+                style={[
+                  styles.fieldLabel,
+                  { color: theme.colors.textSecondary },
+                ]}
+              >
+                Village{" "}
+                <Text style={{ color: theme.statusColors.error }}>*</Text>
+              </Text>
+              <TextInput
+                style={[
+                  styles.textInput,
+                  {
+                    borderColor: theme.colors.border,
+                    color: theme.colors.textPrimary,
+                    backgroundColor: theme.colors.surfacePrimary,
+                  },
+                ]}
+                placeholder="Enter village name"
+                placeholderTextColor={theme.colors.textTertiary}
+                value={formData.village}
+                onChangeText={(text) => handleInputChange("village", text)}
+              />
             </View>
 
             <View style={styles.formRow}>
@@ -561,9 +516,9 @@ const CreateSessionReport = () => {
                   placeholder="No. of participants"
                   placeholderTextColor={theme.colors.textTertiary}
                   keyboardType="numeric"
-                  value={formData.participant_count}
+                  value={formData.participants}
                   onChangeText={(text) =>
-                    handleInputChange("participant_count", text)
+                    handleInputChange("participants", text)
                   }
                 />
               </View>
@@ -587,7 +542,7 @@ const CreateSessionReport = () => {
                       backgroundColor: theme.colors.surfacePrimary,
                     },
                   ]}
-                  placeholder="Auto-calculated"
+                  placeholder="Enter head count"
                   placeholderTextColor={theme.colors.textTertiary}
                   keyboardType="numeric"
                   value={formData.head_count}
@@ -1087,7 +1042,7 @@ const styles = StyleSheet.create({
   },
   fullWidthField: {
     width: "100%",
-
+    marginBottom: 12,
   },
   textAreaInput: {
     borderWidth: 1,

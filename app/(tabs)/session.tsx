@@ -35,6 +35,9 @@ interface CFLSession {
   region?: string;
   state?: string;
   status?: string;
+  village_name?: string;
+  district_name?: string;
+  region_name?: string;
 }
 
 export default function ReportScreen() {
@@ -87,10 +90,11 @@ export default function ReportScreen() {
         "males",
         "females",
         "village",
-        "block",
-        "cfl_center",
-        "district",
-        "region",
+        "village_name",
+        "block_name",
+        "cfl_name",
+        "district_name",
+        "region_name",
         "company",
         "session_image_1",
         "session_image_2",
@@ -322,7 +326,7 @@ export default function ReportScreen() {
         0
       ),
       uniqueVillages: new Set(
-        filteredReports.map((r) => r.village).filter(Boolean)
+        filteredReports.map((r) => r.village_name).filter(Boolean)
       ).size,
       completedReports: filteredReports.filter(
         (r) => r.feedback && r.feedback.trim().length > 0
@@ -446,8 +450,8 @@ export default function ReportScreen() {
             ]}
             numberOfLines={1}
           >
-            {item.village
-              ? `${item.village}${item.district ? `, ${item.district}` : ""}`
+            {item.village_name
+              ? `${item.village_name}${item.district_name ? `, ${item.district_name}` : ""}`
               : "Location not specified"}
           </Text>
         </View>

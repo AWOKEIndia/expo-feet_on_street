@@ -23,15 +23,16 @@ const { width: screenWidth } = Dimensions.get("window");
 interface CFLSessionDetail {
   name: string;
   employee: string;
+  cfl_name?: string;
   owner?: string;
   participants?: number;
   feedback?: string;
-  village?: string;
-  block?: string;
-  cfl_center?: string;
-  district?: string;
-  region?: string;
-  state?: string;
+  village_name?: string;
+  block_name?: string;
+  cfl_center_name?: string;
+  district_name?: string;
+  region_name?: string;
+  state_name?: string;
   session_duration?: string;
   session_type?: string;
   topics_covered?: string[];
@@ -72,15 +73,15 @@ const SessionReportScreen = () => {
       const fields = [
         "name",
         "employee",
-        "cfl_center",
+        "cfl_name",
         "trainer_name",
         "date",
         "participant_count",
-        "village",
-        "district",
-        "block",
-        "region",
-        "state",
+        "village_name",
+        "district_name",
+        "block_name",
+        "region_name",
+        "state_name",
         "feedback",
         "session_duration",
         "session_type",
@@ -430,7 +431,7 @@ const renderPhotoGallery = () => {
             {sessionData.session_type || "CFL Session"}
           </Text>
           <Text style={[styles.sessionSubtitle, { color: theme.colors.textInverted + "CC" }]}>
-            {sessionData.cfl_center || "CFL Center"}
+            {sessionData.cfl_name || "CFL Center"}
           </Text>
           <View style={styles.sessionMeta}>
             <View style={styles.metaItem}>
@@ -464,11 +465,11 @@ const renderPhotoGallery = () => {
         {/* Location Details */}
         {renderInfoSection("Location Details", "location-outline", (
           <>
-            {renderInfoRow("Village", sessionData.village)}
-            {renderInfoRow("Block", sessionData.block)}
-            {renderInfoRow("District", sessionData.district)}
-            {renderInfoRow("Region", sessionData.region)}
-            {renderInfoRow("State", sessionData.state)}
+            {renderInfoRow("Village", sessionData.village_name)}
+            {renderInfoRow("Block", sessionData.block_name)}
+            {renderInfoRow("District", sessionData.district_name)}
+            {renderInfoRow("Region", sessionData.region_name)}
+            {renderInfoRow("State", sessionData.state_name)}
           </>
         ))}
 
