@@ -48,6 +48,7 @@ const CreateSessionReport = () => {
     feedback: "",
     employee: "",
     employee_id: "",
+    village_name: "",
     village: "",
     block: "",
     cfl_center: "",
@@ -129,7 +130,6 @@ const CreateSessionReport = () => {
   const handleInputChange = (field: string, value: string | Date) => {
     setFormData({ ...formData, [field]: value });
   };
-
 
   const onDateChange = (event: any, selectedDate?: Date) => {
     setShowDatePicker(Platform.OS === "ios");
@@ -220,77 +220,249 @@ const CreateSessionReport = () => {
     });
   };
 
-  const submitReport = () => {
-    if (!formData.date) {
-      Alert.alert(
-        "Missing Information",
-        "Please enter the training session date"
+  const { accessToken } = useAuth();
+
+  const submitReport = async () => {
+    try {
+      // Validate all required fields
+      if (!formData.date) {
+        Alert.alert(
+          "Missing Information",
+          "Please enter the training session date"
+        );
+        return;
+      }
+
+      if (!formData.participants) {
+        Alert.alert(
+          "Missing Information",
+          "Please enter the participant count"
+        );
+        return;
+      }
+
+      if (!formData.head_count) {
+        Alert.alert("Missing Information", "Please enter the head count");
+        return;
+      }
+
+      if (!formData.no_of_males) {
+        Alert.alert("Missing Information", "Please enter the number of males");
+        return;
+      }
+
+      if (!formData.no_of_females) {
+        Alert.alert(
+          "Missing Information",
+          "Please enter the number of females"
+        );
+        return;
+      }
+
+      if (!formData.employee) {
+        Alert.alert("Missing Information", "Please select an employee");
+        return;
+      }
+
+      if (!sessionImages[0] || !sessionImages[1]) {
+        Alert.alert(
+          "Missing Images",
+          "Please upload at least the first two training photos"
+        );
+        return;
+      }
+
+      if (!participantImages[0]) {
+        Alert.alert(
+          "Missing Images",
+          "Please upload at least one participant list page"
+        );
+        return;
+      }
+
+      if (!formData.village) {
+        Alert.alert("Missing Information", "Please enter the village name");
+        return;
+      }
+
+      // Numeric validations
+      if (isNaN(Number(formData.participants))) {
+        Alert.alert("Invalid Input", "Participants must be a number");
+        return;
+      }
+
+      if (isNaN(Number(formData.head_count))) {
+        Alert.alert("Invalid Input", "Head count must be a number");
+        return;
+      }
+
+      if (isNaN(Number(formData.no_of_males))) {
+        Alert.alert("Invalid Input", "Number of males must be a number");
+        return;
+      }
+
+      if (isNaN(Number(formData.no_of_females))) {
+        Alert.alert("Invalid Input", "Number of females must be a number");
+        return;
+      }
+
+      // Show loading indicator
+      Alert.alert("Submitting", "Please wait while we process your report...");
+
+      // File upload function
+      const uploadFile = async (uri: string, filename: string) => {
+        const formData = new FormData();
+        formData.append("file", {
+          uri,
+          name: filename,
+          type: "image/jpeg",
+        } as any);
+
+        const response = await fetch(
+          `${process.env.EXPO_PUBLIC_BASE_URL}/api/method/upload_file`,
+          {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+            },
+            body: formData,
+          }
+        );
+
+        const result = await response.json();
+
+        if (!response.ok) {
+          throw new Error(result.message || "Failed to upload file");
+        }
+
+        // Return just the file URL string
+        return typeof result.message === "string"
+          ? result.message
+          : result.message.file_url;
+      };
+
+      // Upload files sequentially to avoid rate limiting
+      const fileUrls: Record<string, string> = {};
+
+      try {
+        // Upload session images
+        for (let i = 0; i < sessionImages.length; i++) {
+          const image = sessionImages[i];
+          if (image && image.uri) {
+            fileUrls[`session_image_${i + 1}`] = await uploadFile(
+              image.uri,
+              `session_${Date.now()}_${i + 1}.jpg`
+            );
+          }
+        }
+
+        // Upload participant images
+        for (let i = 0; i < participantImages.length; i++) {
+          const participantImage = participantImages[i];
+          if (participantImage && participantImage.uri) {
+            fileUrls[`participant_list_image_${i + 1}`] = await uploadFile(
+              participantImage.uri,
+              `participant_${Date.now()}_${i + 1}.jpg`
+            );
+          }
+        }
+      } catch (uploadError) {
+        let errorMessage = "Unknown error";
+        if (uploadError && typeof uploadError === "object" && "message" in uploadError) {
+          errorMessage = (uploadError as { message: string }).message;
+        }
+        throw new Error(`File upload failed: ${errorMessage}`);
+      }
+
+      // 2. Prepare flat session data without nested objects
+      const sessionData = {
+        doctype: "CFL Session",
+        trainer_name: String(formData.trainer_name),
+        date: formData.date.toISOString().split("T")[0],
+        participants: String(formData.participants),
+        head_count: String(formData.head_count),
+        no_of_males: String(formData.no_of_males),
+        no_of_females: String(formData.no_of_females),
+        feedback: String(formData.feedback || ""),
+        employee: String(formData.employee),
+        employee_id: String(formData.employee_id),
+        village: String(formData.village),
+        village_name: String(formData.village_name || formData.village),
+        block: String(formData.block || ""),
+        cfl_center: String(formData.cfl_center || ""),
+        district: String(formData.district || ""),
+        region: String(formData.region || ""),
+        state: String(formData.state || ""),
+        // Add file URLs directly (not nested)
+        ...fileUrls,
+      };
+
+      // 3. Submit to Frappe
+      const response = await fetch(
+        `${process.env.EXPO_PUBLIC_BASE_URL}/api/resource/CFL Session`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${accessToken}`,
+          },
+          body: JSON.stringify(sessionData),
+        }
       );
-      return;
-    }
 
-    if (!formData.participants) {
-      Alert.alert("Missing Information", "Please enter the participant count");
-      return;
-    }
+      const result = await response.json();
 
-    if (!formData.head_count) {
-      Alert.alert("Missing Information", "Please enter the head count");
-      return;
-    }
+      if (!response.ok) {
+        let errorMsg = "Submission failed";
+        if (result._server_messages) {
+          try {
+            const messages = JSON.parse(result._server_messages);
+            errorMsg = messages
+              .map((m: string) => {
+                try {
+                  return JSON.parse(m).message;
+                } catch {
+                  return m;
+                }
+              })
+              .join("\n");
+          } catch {
+            errorMsg = result._server_messages;
+          }
+        }
+        throw new Error(errorMsg);
+      }
 
-    if (!formData.no_of_males) {
-      Alert.alert("Missing Information", "Please enter the number of males");
-      return;
-    }
+      // Success - reset form
+      setFormData({
+        trainer_name: "",
+        date: new Date(),
+        participants: "",
+        head_count: "",
+        no_of_males: "",
+        no_of_females: "",
+        feedback: "",
+        employee: "",
+        employee_id: "",
+        village_name: "",
+        village: "",
+        block: "",
+        cfl_center: "",
+        district: "",
+        region: "",
+        state: "",
+      });
+      setSessionImages([null, null, null, null]);
+      setParticipantImages([null, null, null]);
 
-    if (!formData.no_of_females) {
-      Alert.alert("Missing Information", "Please enter the number of females");
-      return;
-    }
-
-    if (!formData.employee) {
-      Alert.alert("Missing Information", "Please select an employee");
-      return;
-    }
-
-    if (!sessionImages[0] || !sessionImages[1]) {
+      Alert.alert("Success", "Session report submitted successfully");
+    } catch (error: any) {
+      console.error("Submission error:", error);
       Alert.alert(
-        "Missing Images",
-        "Please upload at least the first two training photos"
+        "Error",
+        error.message || "Failed to submit report. Please try again."
       );
-      return;
     }
-
-    if (!participantImages[0]) {
-      Alert.alert(
-        "Missing Images",
-        "Please upload at least one participant list page"
-      );
-      return;
-    }
-
-    if (!formData.village) {
-      Alert.alert("Missing Information", "Please enter the village name");
-      return;
-    }
-
-
-    const submissionData = {
-      ...formData,
-      date: formData.date.toISOString().split("T")[0],
-      session_image_1: sessionImages[0]?.uri,
-      session_image_2: sessionImages[1]?.uri,
-      session_image_3: sessionImages[2]?.uri,
-      session_image_4: sessionImages[3]?.uri,
-      participant_list_image_1: participantImages[0]?.uri,
-      participant_list_image_2: participantImages[1]?.uri,
-      participant_list_image_3: participantImages[2]?.uri,
-    };
-
-    console.log("Submitting data:", submissionData);
-
-    Alert.alert("Success", "Session report submitted successfully");
   };
 
   return (
