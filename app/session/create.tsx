@@ -16,15 +16,40 @@ import {
   TextInput,
   TouchableOpacity,
   View,
+  FlatList,
+  ActivityIndicator,
+  Animated,
 } from "react-native";
 import { useAuth } from "@/hooks/useAuth";
 import * as ImagePicker from "expo-image-picker";
+import useVillage from "@/hooks/useVillages";
+
+type Village = {
+  name: string;
+  village_name?: string;
+  village_code?: string;
+  [key: string]: any;
+};
 
 const CreateSessionReport = () => {
   const navigation = useNavigation();
   const { theme, isDark } = useTheme();
-  const { employeeProfile } = useAuth();
+  const { employeeProfile, accessToken } = useAuth();
+  const {
+    data: villages,
+    loading: villagesLoading,
+    error: villagesError,
+    refreshing: villagesRefreshing,
+    searchVillages,
+    loadMoreVillages,
+    hasMore,
+    refresh: refreshVillages,
+  } = useVillage(accessToken ?? "");
+
+  const [dropdownAnim] = useState(new Animated.Value(0));
   const [disableOnFetch, setDisableOnFetch] = useState(false);
+  const [showVillageDropdown, setShowVillageDropdown] = useState(false);
+  const [villageSearch, setVillageSearch] = useState("");
 
   const [hasGalleryPermission, setHasGalleryPermission] = useState(false);
   const [feetOnStreetAlbum, setFeetOnStreetAlbum] =
@@ -58,6 +83,14 @@ const CreateSessionReport = () => {
   });
 
   useEffect(() => {
+    Animated.timing(dropdownAnim, {
+      toValue: showVillageDropdown ? 1 : 0,
+      duration: 200,
+      useNativeDriver: true,
+    }).start();
+  }, [showVillageDropdown]);
+
+  useEffect(() => {
     (async () => {
       const { status } = await MediaLibrary.requestPermissionsAsync();
       setHasGalleryPermission(status === "granted");
@@ -68,10 +101,7 @@ const CreateSessionReport = () => {
           const feetOnStreetAlb = albums.find(
             (album) => album.title === "Feet On Street Photos"
           );
-
-          if (feetOnStreetAlb) {
-            setFeetOnStreetAlbum(feetOnStreetAlb);
-          }
+          if (feetOnStreetAlb) setFeetOnStreetAlbum(feetOnStreetAlb);
         } catch (error) {
           console.error("Error fetching albums:", error);
         }
@@ -136,6 +166,22 @@ const CreateSessionReport = () => {
     if (selectedDate) {
       handleInputChange("date", selectedDate);
     }
+  };
+
+  const handleVillageSearch = (text: string) => {
+    setVillageSearch(text);
+    setShowVillageDropdown(true);
+    searchVillages(text);
+  };
+
+  const handleVillageSelect = (village: Village) => {
+    setFormData((prev) => ({
+      ...prev,
+      village: village.name,
+      village_name: village.village_name || village.name,
+    }));
+    setShowVillageDropdown(false);
+    setVillageSearch(village.village_name || village.name);
   };
 
   const openMediaPicker = async (
@@ -220,11 +266,8 @@ const CreateSessionReport = () => {
     });
   };
 
-  const { accessToken } = useAuth();
-
   const submitReport = async () => {
     try {
-      // Validate all required fields
       if (!formData.date) {
         Alert.alert(
           "Missing Information",
@@ -285,7 +328,6 @@ const CreateSessionReport = () => {
         return;
       }
 
-      // Numeric validations
       if (isNaN(Number(formData.participants))) {
         Alert.alert("Invalid Input", "Participants must be a number");
         return;
@@ -306,10 +348,8 @@ const CreateSessionReport = () => {
         return;
       }
 
-      // Show loading indicator
       Alert.alert("Submitting", "Please wait while we process your report...");
 
-      // File upload function
       const uploadFile = async (uri: string, filename: string) => {
         const formData = new FormData();
         formData.append("file", {
@@ -335,17 +375,14 @@ const CreateSessionReport = () => {
           throw new Error(result.message || "Failed to upload file");
         }
 
-        // Return just the file URL string
         return typeof result.message === "string"
           ? result.message
           : result.message.file_url;
       };
 
-      // Upload files sequentially to avoid rate limiting
       const fileUrls: Record<string, string> = {};
 
       try {
-        // Upload session images
         for (let i = 0; i < sessionImages.length; i++) {
           const image = sessionImages[i];
           if (image && image.uri) {
@@ -356,7 +393,6 @@ const CreateSessionReport = () => {
           }
         }
 
-        // Upload participant images
         for (let i = 0; i < participantImages.length; i++) {
           const participantImage = participantImages[i];
           if (participantImage && participantImage.uri) {
@@ -368,13 +404,16 @@ const CreateSessionReport = () => {
         }
       } catch (uploadError) {
         let errorMessage = "Unknown error";
-        if (uploadError && typeof uploadError === "object" && "message" in uploadError) {
+        if (
+          uploadError &&
+          typeof uploadError === "object" &&
+          "message" in uploadError
+        ) {
           errorMessage = (uploadError as { message: string }).message;
         }
         throw new Error(`File upload failed: ${errorMessage}`);
       }
 
-      // 2. Prepare flat session data without nested objects
       const sessionData = {
         doctype: "CFL Session",
         trainer_name: String(formData.trainer_name),
@@ -393,11 +432,9 @@ const CreateSessionReport = () => {
         district: String(formData.district || ""),
         region: String(formData.region || ""),
         state: String(formData.state || ""),
-        // Add file URLs directly (not nested)
         ...fileUrls,
       };
 
-      // 3. Submit to Frappe
       const response = await fetch(
         `${process.env.EXPO_PUBLIC_BASE_URL}/api/resource/CFL Session`,
         {
@@ -433,7 +470,6 @@ const CreateSessionReport = () => {
         throw new Error(errorMsg);
       }
 
-      // Success - reset form
       setFormData({
         trainer_name: "",
         date: new Date(),
@@ -454,6 +490,7 @@ const CreateSessionReport = () => {
       });
       setSessionImages([null, null, null, null]);
       setParticipantImages([null, null, null]);
+      setVillageSearch("");
 
       Alert.alert("Success", "Session report submitted successfully");
     } catch (error: any) {
@@ -463,6 +500,56 @@ const CreateSessionReport = () => {
         error.message || "Failed to submit report. Please try again."
       );
     }
+  };
+
+  const renderVillageItem = ({ item }: { item: Village }) => (
+    <TouchableOpacity
+      style={[
+        styles.dropdownItem,
+        {
+          paddingVertical: 12,
+          paddingHorizontal: 16,
+          borderBottomWidth: 1,
+          borderBottomColor: theme.colors.border,
+        },
+      ]}
+      onPress={() => {
+        handleVillageSelect(item);
+        setShowVillageDropdown(false);
+      }}
+    >
+      <View>
+        <Text
+          style={{
+            color: theme.colors.textPrimary,
+            fontWeight: "500",
+            fontSize: 14,
+          }}
+        >
+          {item.village_name || item.name}
+        </Text>
+        {item.village_code && (
+          <Text
+            style={{
+              color: theme.colors.textSecondary,
+              fontSize: 12,
+              marginTop: 2,
+            }}
+          >
+            Code: {item.village_code}
+          </Text>
+        )}
+      </View>
+    </TouchableOpacity>
+  );
+
+  const renderFooter = () => {
+    if (!hasMore) return null;
+    return (
+      <View style={styles.dropdownFooter}>
+        <ActivityIndicator size="small" color={theme.colors.textPrimary} />
+      </View>
+    );
   };
 
   return (
@@ -480,10 +567,7 @@ const CreateSessionReport = () => {
         <View
           style={[
             styles.formCard,
-            {
-              backgroundColor: theme.colors.surfacePrimary,
-              ...theme.shadows.sm,
-            },
+            { backgroundColor: theme.colors.surfacePrimary },
           ]}
         >
           <Text style={[styles.formTitle, { color: theme.colors.textPrimary }]}>
@@ -628,10 +712,7 @@ const CreateSessionReport = () => {
         <View
           style={[
             styles.formCard,
-            {
-              backgroundColor: theme.colors.surfacePrimary,
-              ...theme.shadows.sm,
-            },
+            { backgroundColor: theme.colors.surfacePrimary },
           ]}
         >
           <Text style={[styles.formTitle, { color: theme.colors.textPrimary }]}>
@@ -639,7 +720,7 @@ const CreateSessionReport = () => {
           </Text>
 
           <View style={styles.formSection}>
-            <View style={styles.fullWidthField}>
+            <View style={styles.villageInputContainer}>
               <Text
                 style={[
                   styles.fieldLabel,
@@ -658,11 +739,111 @@ const CreateSessionReport = () => {
                     backgroundColor: theme.colors.surfacePrimary,
                   },
                 ]}
-                placeholder="Enter village name"
+                placeholder="Search village by name"
                 placeholderTextColor={theme.colors.textTertiary}
-                value={formData.village}
-                onChangeText={(text) => handleInputChange("village", text)}
+                value={villageSearch}
+                onChangeText={handleVillageSearch}
+                onFocus={() => setShowVillageDropdown(true)}
+                onBlur={() =>
+                  setTimeout(() => setShowVillageDropdown(false), 200)
+                }
               />
+
+              {villagesLoading && !villagesRefreshing && (
+                <View style={styles.dropdownLoading}>
+                  <ActivityIndicator
+                    size="small"
+                    color={theme.colors.textPrimary}
+                  />
+                </View>
+              )}
+
+              <Animated.View
+                style={[
+                  styles.villageDropdownContainer,
+                  {
+                    opacity: dropdownAnim,
+                    transform: [
+                      {
+                        translateY: dropdownAnim.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [-10, 0],
+                        }),
+                      },
+                    ],
+                    backgroundColor: theme.colors.surfacePrimary,
+                    borderColor: theme.colors.border,
+                  },
+                  !showVillageDropdown && { display: "none" },
+                ]}
+              >
+                {villagesError ? (
+                  <View style={styles.dropdownEmpty}>
+                    <Text style={{ color: theme.colors.textSecondary }}>
+                      Error loading villages
+                    </Text>
+                    <TouchableOpacity
+                      onPress={refreshVillages}
+                      style={styles.retryButton}
+                    >
+                      <Text style={{ color: theme.brandColors.primary }}>
+                        Retry
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : villages.length === 0 ? (
+                  <View style={styles.dropdownEmpty}>
+                    <Text style={{ color: theme.colors.textSecondary }}>
+                      No villages found
+                    </Text>
+                  </View>
+                ) : (
+                  <ScrollView
+                    style={styles.dropdownListContainer}
+                    nestedScrollEnabled={true}
+                    keyboardShouldPersistTaps="handled"
+                    showsVerticalScrollIndicator={true}
+                  >
+                    <FlatList
+                      data={villages}
+                      renderItem={renderVillageItem}
+                      keyExtractor={(item) =>
+                        `${item.name}-${item.village_code || ""}`
+                      }
+                      onEndReached={loadMoreVillages}
+                      onEndReachedThreshold={0.5}
+                      ListFooterComponent={renderFooter}
+                    />
+
+                    {/* Load More Button */}
+                    {hasMore && (
+                      <TouchableOpacity
+                        style={[
+                          styles.loadMoreButton,
+                          { borderTopColor: theme.colors.border },
+                        ]}
+                        onPress={loadMoreVillages}
+                      >
+                        {villagesLoading ? (
+                          <ActivityIndicator
+                            size="small"
+                            color={theme.colors.textPrimary}
+                          />
+                        ) : (
+                          <Text
+                            style={{
+                              color: theme.brandColors.primary,
+                              fontSize: 14,
+                            }}
+                          >
+                            Load More
+                          </Text>
+                        )}
+                      </TouchableOpacity>
+                    )}
+                  </ScrollView>
+                )}
+              </Animated.View>
             </View>
 
             <View style={styles.formRow}>
@@ -947,10 +1128,7 @@ const CreateSessionReport = () => {
         <View
           style={[
             styles.formCard,
-            {
-              backgroundColor: theme.colors.surfacePrimary,
-              ...theme.shadows.sm,
-            },
+            { backgroundColor: theme.colors.surfacePrimary },
           ]}
         >
           <Text style={[styles.formTitle, { color: theme.colors.textPrimary }]}>
@@ -1085,7 +1263,6 @@ const CreateSessionReport = () => {
             styles.submitButton,
             {
               backgroundColor: theme.brandColors.primary,
-              ...theme.shadows.md,
             },
           ]}
           onPress={submitReport}
@@ -1115,6 +1292,69 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 16,
     paddingBottom: 24,
+  },
+  formCard: {
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 20,
+  },
+  formTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+    marginBottom: 16,
+  },
+  formSection: {
+    marginBottom: 20,
+  },
+  formRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 12,
+  },
+  formField: {
+    width: "48%",
+  },
+  fieldLabel: {
+    fontSize: 14,
+    marginBottom: 6,
+    fontWeight: "500",
+  },
+  textInput: {
+    borderWidth: 1,
+    borderRadius: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 14,
+  },
+  datePickerContainer: {
+    borderWidth: 1,
+    borderRadius: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  fullWidthField: {
+    width: "100%",
+    marginBottom: 12,
+  },
+  textAreaInput: {
+    borderWidth: 1,
+    borderRadius: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 14,
+    height: 100,
+  },
+  fieldValueContainer: {
+    borderWidth: 1,
+    borderRadius: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+  },
+  fieldValue: {
+    fontSize: 14,
   },
   sectionContainer: {
     marginBottom: 20,
@@ -1156,74 +1396,6 @@ const styles = StyleSheet.create({
     height: "100%",
     resizeMode: "cover",
   },
-  formCard: {
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 20,
-  },
-  formTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    marginBottom: 16,
-  },
-  formSection: {
-    marginBottom: 20,
-  },
-  formSectionTitle: {
-    fontSize: 15,
-    fontWeight: "500",
-    marginBottom: 12,
-  },
-  formRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: 12,
-  },
-  formField: {
-    width: "48%",
-  },
-  fieldLabel: {
-    fontSize: 14,
-    marginBottom: 6,
-    fontWeight: "500",
-  },
-  fieldValueContainer: {
-    borderWidth: 1,
-    borderRadius: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-  },
-  fieldValue: {
-    fontSize: 14,
-  },
-  textInput: {
-    borderWidth: 1,
-    borderRadius: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 14,
-  },
-  datePickerContainer: {
-    borderWidth: 1,
-    borderRadius: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  fullWidthField: {
-    width: "100%",
-    marginBottom: 12,
-  },
-  textAreaInput: {
-    borderWidth: 1,
-    borderRadius: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 14,
-    height: 100,
-  },
   participantImagesContainer: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -1245,6 +1417,59 @@ const styles = StyleSheet.create({
   submitButtonText: {
     fontSize: 16,
     fontWeight: "600",
+  },
+  villageInputContainer: {
+    position: "relative",
+    marginBottom: 20,
+  },
+  villageDropdownContainer: {
+    position: "absolute",
+    top: "100%",
+    left: 0,
+    right: 0,
+    maxHeight: 200,
+    borderWidth: 1,
+    borderRadius: 6,
+    marginTop: 4,
+    zIndex: 1000,
+    elevation: 5,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  dropdownListContainer: {
+    height: 198,
+  },
+  dropdownItem: {
+    backgroundColor: "transparent",
+  },
+  dropdownLoading: {
+    position: "absolute",
+    right: 10,
+    top: 40,
+  },
+  dropdownEmpty: {
+    padding: 15,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  dropdownFooter: {
+    padding: 10,
+    alignItems: "center",
+  },
+  retryButton: {
+    marginTop: 10,
+    padding: 8,
+    borderRadius: 4,
+    borderWidth: 1,
+  },
+  loadMoreButton: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    alignItems: "center",
+    borderTopWidth: 1,
+    marginTop: 5,
   },
 });
 
