@@ -1,9 +1,6 @@
-// src/app/CreateSessionReport.tsx (or your file path)
-
 import { useTheme } from "@/contexts/ThemeContext";
 import { Ionicons } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
-import * as MediaLibrary from "expo-media-library";
 import { useNavigation } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
@@ -206,7 +203,6 @@ const CreateSessionReport = () => {
   };
 
   const submitReport = async () => {
-    // Validation Checks
     if (
       !formData.date ||
       !formData.participants ||
@@ -337,7 +333,6 @@ const CreateSessionReport = () => {
       }
 
       Alert.alert("Success", "Session report submitted successfully");
-      // Reset form state
       setFormData({
         trainer_name: "",
         date: new Date(),
@@ -377,7 +372,6 @@ const CreateSessionReport = () => {
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
       >
-        {/* Employee Information Section */}
         <View
           style={[
             styles.formCard,
@@ -512,7 +506,6 @@ const CreateSessionReport = () => {
           </View>
         </View>
 
-        {/* Session Information Section */}
         <View
           style={[
             styles.formCard,
@@ -522,11 +515,18 @@ const CreateSessionReport = () => {
           <Text style={[styles.formTitle, { color: theme.colors.textPrimary }]}>
             Session Information
           </Text>
-          <VillageSearchInput
-            accessToken={accessToken ?? ""}
-            onVillageSelect={handleVillageSelect}
-            initialValue={formData.village_name}
-          />
+          <Text
+            style={[styles.fieldLabel, { color: theme.colors.textSecondary }]}
+          >
+            Village <Text style={{ color: theme.statusColors.error }}>*</Text>
+          </Text>
+          <View style={styles.componentWrapper}>
+            <VillageSearchInput
+              accessToken={accessToken ?? ""}
+              onVillageSelect={handleVillageSelect}
+              initialValue={formData.village_name}
+            />
+          </View>
           <View style={styles.formRow}>
             <View style={styles.formField}>
               <Text
@@ -663,7 +663,6 @@ const CreateSessionReport = () => {
           </View>
         </View>
 
-        {/* Session Images Section */}
         <View style={styles.sectionContainer}>
           <Text
             style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}
@@ -726,7 +725,6 @@ const CreateSessionReport = () => {
           </View>
         </View>
 
-        {/* Participant List Section */}
         <View style={styles.sectionContainer}>
           <Text
             style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}
@@ -789,7 +787,6 @@ const CreateSessionReport = () => {
           </View>
         </View>
 
-        {/* Geographical Information Section */}
         <View
           style={[
             styles.formCard,
@@ -917,7 +914,6 @@ const CreateSessionReport = () => {
           </View>
         </View>
 
-        {/* Submit Button */}
         <TouchableOpacity
           style={[
             styles.submitButton,
@@ -940,6 +936,10 @@ const CreateSessionReport = () => {
 };
 
 const styles = StyleSheet.create({
+  componentWrapper: {
+    zIndex: 10,
+    marginBottom: 20,
+  },
   container: { flex: 1 },
   contentContainer: { flex: 1 },
   scrollContent: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 24 },
@@ -959,12 +959,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 10,
     fontSize: 14,
+    height: 44,
   },
   datePickerContainer: {
     borderWidth: 1,
     borderRadius: 6,
     paddingHorizontal: 12,
-    paddingVertical: 10,
+    height: 44,
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",

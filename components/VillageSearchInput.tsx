@@ -1,5 +1,3 @@
-// src/components/VillageSearchInput.tsx (Corrected)
-
 import { useTheme } from "@/contexts/ThemeContext";
 import useVillage from "@/hooks/useVillages";
 import React, { useEffect, useState } from "react";
@@ -35,22 +33,18 @@ const VillageSearchInput = ({
   const { theme } = useTheme();
   const {
     data: villages,
-    loading: villagesLoading,
-    error: villagesError,
-    refreshing: villagesRefreshing,
+    loading,
+    error,
     searchVillages,
-    loadMoreVillages,
-    hasMore,
-    refresh: refreshVillages,
   } = useVillage(accessToken);
 
-  const [dropdownAnim] = useState(new Animated.Value(0));
+  const [inputValue, setInputValue] = useState(initialValue);
   const [showVillageDropdown, setShowVillageDropdown] = useState(false);
-  const [villageSearch, setVillageSearch] = useState(initialValue);
+  const [dropdownAnim] = useState(new Animated.Value(0));
 
   useEffect(() => {
-    setVillageSearch(initialValue);
-  }, [initialValue]);
+    if (!showVillageDropdown) setInputValue(initialValue);
+  }, [initialValue, showVillageDropdown]);
 
   useEffect(() => {
     Animated.timing(dropdownAnim, {
@@ -60,15 +54,15 @@ const VillageSearchInput = ({
     }).start();
   }, [showVillageDropdown]);
 
-  const handleSearchChange = (text: string) => {
-    setVillageSearch(text);
-    setShowVillageDropdown(true);
+  const handleTextChange = (text: string) => {
+    setInputValue(text);
     searchVillages(text);
+    if (!showVillageDropdown) setShowVillageDropdown(true);
   };
 
   const handleSelect = (village: Village) => {
     setShowVillageDropdown(false);
-    setVillageSearch(village.village_name || village.name);
+    setInputValue(village.village_name || village.name);
     onVillageSelect(village);
   };
 
@@ -77,65 +71,21 @@ const VillageSearchInput = ({
       style={[styles.dropdownItem, { borderBottomColor: theme.colors.border }]}
       onPress={() => handleSelect(item)}
     >
-      <View>
-        <Text style={[styles.villageName, { color: theme.colors.textPrimary }]}>
-          {item.village_name || item.name}
+      <Text style={[styles.villageName, { color: theme.colors.textPrimary }]}>
+        {item.village_name || item.name}
+      </Text>
+      {item.village_code && (
+        <Text
+          style={[styles.villageCode, { color: theme.colors.textSecondary }]}
+        >
+          Code: {item.village_code}
         </Text>
-        {item.village_code && (
-          <Text
-            style={[styles.villageCode, { color: theme.colors.textSecondary }]}
-          >
-            Code: {item.village_code}
-          </Text>
-        )}
-      </View>
+      )}
     </TouchableOpacity>
   );
 
-  const renderFooter = () => {
-    // Show loader at the bottom only when loading more
-    if (!villagesLoading || villages.length === 0) return null;
-    return (
-      <View style={styles.dropdownFooter}>
-        <ActivityIndicator size="small" color={theme.colors.textPrimary} />
-      </View>
-    );
-  };
-
-  // ✅ This function correctly handles all states and fixes the error
-  const renderListEmpty = () => {
-    if (villagesLoading && villages.length === 0) {
-      // Don't show an empty message while the initial load is happening
-      return null;
-    }
-
-    if (villagesError) {
-      return (
-        <View style={styles.dropdownEmpty}>
-          <Text style={{ color: theme.colors.textSecondary }}>
-            Error loading villages
-          </Text>
-          <TouchableOpacity
-            onPress={refreshVillages}
-            style={[styles.retryButton, { borderColor: theme.colors.border }]}
-          >
-            <Text style={{ color: theme.brandColors.primary }}>Retry</Text>
-          </TouchableOpacity>
-        </View>
-      );
-    }
-
-    return (
-      <View style={styles.dropdownEmpty}>
-        <Text style={{ color: theme.colors.textSecondary }}>
-          No villages found
-        </Text>
-      </View>
-    );
-  };
-
   return (
-    <View style={styles.container}>
+    <View>
       <TextInput
         style={[
           styles.textInput,
@@ -147,18 +97,11 @@ const VillageSearchInput = ({
         ]}
         placeholder="Search village by name"
         placeholderTextColor={theme.colors.textTertiary}
-        value={villageSearch}
-        onChangeText={handleSearchChange}
+        value={inputValue}
+        onChangeText={handleTextChange}
         onFocus={() => setShowVillageDropdown(true)}
         onBlur={() => setTimeout(() => setShowVillageDropdown(false), 200)}
       />
-
-      {villagesLoading && !villagesRefreshing && villages.length === 0 && (
-        // Show a loader only on initial load, not when paginating
-        <View style={styles.dropdownLoading}>
-          <ActivityIndicator size="small" color={theme.colors.textPrimary} />
-        </View>
-      )}
 
       {showVillageDropdown && (
         <Animated.View
@@ -166,31 +109,21 @@ const VillageSearchInput = ({
             styles.dropdownContainer,
             {
               opacity: dropdownAnim,
-              transform: [
-                {
-                  translateY: dropdownAnim.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [-10, 0],
-                  }),
-                },
-              ],
               backgroundColor: theme.colors.surfacePrimary,
               borderColor: theme.colors.border,
             },
           ]}
         >
-          <FlatList
-            data={villages}
-            renderItem={renderVillageItem}
-            keyExtractor={(item, index) => `${item.name}-${index}`}
-            ListEmptyComponent={renderListEmpty}
-            ListFooterComponent={renderFooter}
-            onEndReached={loadMoreVillages}
-            onEndReachedThreshold={0.5}
-            nestedScrollEnabled={true}
-            keyboardShouldPersistTaps="handled"
-            style={styles.dropdownList}
-          />
+          {loading && <ActivityIndicator style={{ paddingVertical: 20 }} />}
+          {!loading && (
+            <FlatList
+              data={villages.slice(0, 4)}
+              renderItem={renderVillageItem}
+              keyExtractor={(item) => item.name} // Using stable ID is best practice
+              keyboardShouldPersistTaps="handled"
+              scrollEnabled={false} // Scrolling is not needed for a list of 3
+            />
+          )}
         </Animated.View>
       )}
     </View>
@@ -198,7 +131,6 @@ const VillageSearchInput = ({
 };
 
 const styles = StyleSheet.create({
-  container: { position: "relative", width: "100%", marginBottom: 20 },
   textInput: {
     borderWidth: 1,
     borderRadius: 6,
@@ -211,35 +143,28 @@ const styles = StyleSheet.create({
     top: "100%",
     left: 0,
     right: 0,
-    maxHeight: 200,
     borderWidth: 1,
     borderRadius: 6,
     marginTop: 4,
-    zIndex: 1000,
     elevation: 5,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    overflow: "hidden",
   },
-  dropdownList: { maxHeight: 198 },
   dropdownItem: {
     paddingVertical: 12,
     paddingHorizontal: 16,
     borderBottomWidth: 1,
   },
-  villageName: { fontWeight: "500", fontSize: 14 },
-  villageCode: { fontSize: 12, marginTop: 2 },
-  dropdownLoading: { position: "absolute", right: 12, top: 12 },
-  dropdownEmpty: {
-    padding: 15,
-    alignItems: "center",
-    justifyContent: "center",
-    height: 100,
+  villageName: {
+    fontWeight: "500",
+    fontSize: 14,
   },
-  dropdownFooter: { padding: 10, alignItems: "center" },
-  retryButton: {
-    marginTop: 10,
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 4,
-    borderWidth: 1,
+  villageCode: {
+    fontSize: 12,
+    marginTop: 2,
   },
 });
 
