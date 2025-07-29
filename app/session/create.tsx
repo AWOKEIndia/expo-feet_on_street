@@ -1,3 +1,5 @@
+// src/app/CreateSessionReport.tsx (or your file path)
+
 import { useTheme } from "@/contexts/ThemeContext";
 import { Ionicons } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
@@ -9,20 +11,17 @@ import {
   Image,
   Platform,
   SafeAreaView,
-  ScrollView,
   StatusBar,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
   View,
-  FlatList,
-  ActivityIndicator,
-  Animated,
 } from "react-native";
+import { ScrollView } from "react-native-virtualized-view";
 import { useAuth } from "@/hooks/useAuth";
 import * as ImagePicker from "expo-image-picker";
-import useVillage from "@/hooks/useVillages";
+import VillageSearchInput from "@/components/VillageSearchInput";
 
 type Village = {
   name: string;
@@ -35,25 +34,8 @@ const CreateSessionReport = () => {
   const navigation = useNavigation();
   const { theme, isDark } = useTheme();
   const { employeeProfile, accessToken } = useAuth();
-  const {
-    data: villages,
-    loading: villagesLoading,
-    error: villagesError,
-    refreshing: villagesRefreshing,
-    searchVillages,
-    loadMoreVillages,
-    hasMore,
-    refresh: refreshVillages,
-  } = useVillage(accessToken ?? "");
 
-  const [dropdownAnim] = useState(new Animated.Value(0));
   const [disableOnFetch, setDisableOnFetch] = useState(false);
-  const [showVillageDropdown, setShowVillageDropdown] = useState(false);
-  const [villageSearch, setVillageSearch] = useState("");
-
-  const [hasGalleryPermission, setHasGalleryPermission] = useState(false);
-  const [feetOnStreetAlbum, setFeetOnStreetAlbum] =
-    useState<MediaLibrary.Album | null>(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
 
   const [sessionImages, setSessionImages] = useState<
@@ -81,33 +63,6 @@ const CreateSessionReport = () => {
     region: "",
     state: "",
   });
-
-  useEffect(() => {
-    Animated.timing(dropdownAnim, {
-      toValue: showVillageDropdown ? 1 : 0,
-      duration: 200,
-      useNativeDriver: true,
-    }).start();
-  }, [showVillageDropdown]);
-
-  useEffect(() => {
-    (async () => {
-      const { status } = await MediaLibrary.requestPermissionsAsync();
-      setHasGalleryPermission(status === "granted");
-
-      if (status === "granted") {
-        try {
-          const albums = await MediaLibrary.getAlbumsAsync();
-          const feetOnStreetAlb = albums.find(
-            (album) => album.title === "Feet On Street Photos"
-          );
-          if (feetOnStreetAlb) setFeetOnStreetAlbum(feetOnStreetAlb);
-        } catch (error) {
-          console.error("Error fetching albums:", error);
-        }
-      }
-    })();
-  }, []);
 
   useEffect(() => {
     if (employeeProfile) {
@@ -168,20 +123,17 @@ const CreateSessionReport = () => {
     }
   };
 
-  const handleVillageSearch = (text: string) => {
-    setVillageSearch(text);
-    setShowVillageDropdown(true);
-    searchVillages(text);
-  };
-
   const handleVillageSelect = (village: Village) => {
     setFormData((prev) => ({
       ...prev,
       village: village.name,
       village_name: village.village_name || village.name,
+      block: village.block || "",
+      cfl_center: village.cfl_center || "",
+      district: village.district || "",
+      region: village.region || "",
+      state: village.state || "",
     }));
-    setShowVillageDropdown(false);
-    setVillageSearch(village.village_name || village.name);
   };
 
   const openMediaPicker = async (
@@ -207,7 +159,6 @@ const CreateSessionReport = () => {
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
         const selectedAsset = result.assets[0];
-
         if (type === "session") {
           const updatedImages = [...sessionImages];
           updatedImages[index] = { uri: selectedAsset.uri };
@@ -224,40 +175,6 @@ const CreateSessionReport = () => {
     }
   };
 
-  const addSessionImage = (index: number) => {
-    Alert.alert("Add Session Image", "Choose an option", [
-      {
-        text: "Take Photo",
-        onPress: () => takePhoto("session", index),
-      },
-      {
-        text: "Choose from Gallery",
-        onPress: () => openMediaPicker("session", index),
-      },
-      {
-        text: "Cancel",
-        style: "cancel",
-      },
-    ]);
-  };
-
-  const addParticipantImage = (index: number) => {
-    Alert.alert("Add Participant List Image", "Choose an option", [
-      {
-        text: "Take Photo",
-        onPress: () => takePhoto("participant", index),
-      },
-      {
-        text: "Choose from Gallery",
-        onPress: () => openMediaPicker("participant", index),
-      },
-      {
-        text: "Cancel",
-        style: "cancel",
-      },
-    ]);
-  };
-
   const takePhoto = (type: "session" | "participant", index: number) => {
     navigation.navigate("session/camera", {
       returnToCreate: "true",
@@ -266,90 +183,72 @@ const CreateSessionReport = () => {
     });
   };
 
+  const addSessionImage = (index: number) => {
+    Alert.alert("Add Session Image", "Choose an option", [
+      { text: "Take Photo", onPress: () => takePhoto("session", index) },
+      {
+        text: "Choose from Gallery",
+        onPress: () => openMediaPicker("session", index),
+      },
+      { text: "Cancel", style: "cancel" },
+    ]);
+  };
+
+  const addParticipantImage = (index: number) => {
+    Alert.alert("Add Participant List Image", "Choose an option", [
+      { text: "Take Photo", onPress: () => takePhoto("participant", index) },
+      {
+        text: "Choose from Gallery",
+        onPress: () => openMediaPicker("participant", index),
+      },
+      { text: "Cancel", style: "cancel" },
+    ]);
+  };
+
   const submitReport = async () => {
+    // Validation Checks
+    if (
+      !formData.date ||
+      !formData.participants ||
+      !formData.head_count ||
+      !formData.no_of_males ||
+      !formData.no_of_females ||
+      !formData.employee ||
+      !formData.village
+    ) {
+      Alert.alert(
+        "Missing Information",
+        "Please fill all required (*) fields."
+      );
+      return;
+    }
+    if (!sessionImages[0] || !sessionImages[1]) {
+      Alert.alert(
+        "Missing Images",
+        "Please upload at least the first two training photos."
+      );
+      return;
+    }
+    if (!participantImages[0]) {
+      Alert.alert(
+        "Missing Images",
+        "Please upload at least one participant list page."
+      );
+      return;
+    }
+    if (
+      isNaN(Number(formData.participants)) ||
+      isNaN(Number(formData.head_count)) ||
+      isNaN(Number(formData.no_of_males)) ||
+      isNaN(Number(formData.no_of_females))
+    ) {
+      Alert.alert("Invalid Input", "Participant counts must be valid numbers.");
+      return;
+    }
+
+    Alert.alert("Submitting", "Please wait while we process your report...");
+
     try {
-      if (!formData.date) {
-        Alert.alert(
-          "Missing Information",
-          "Please enter the training session date"
-        );
-        return;
-      }
-
-      if (!formData.participants) {
-        Alert.alert(
-          "Missing Information",
-          "Please enter the participant count"
-        );
-        return;
-      }
-
-      if (!formData.head_count) {
-        Alert.alert("Missing Information", "Please enter the head count");
-        return;
-      }
-
-      if (!formData.no_of_males) {
-        Alert.alert("Missing Information", "Please enter the number of males");
-        return;
-      }
-
-      if (!formData.no_of_females) {
-        Alert.alert(
-          "Missing Information",
-          "Please enter the number of females"
-        );
-        return;
-      }
-
-      if (!formData.employee) {
-        Alert.alert("Missing Information", "Please select an employee");
-        return;
-      }
-
-      if (!sessionImages[0] || !sessionImages[1]) {
-        Alert.alert(
-          "Missing Images",
-          "Please upload at least the first two training photos"
-        );
-        return;
-      }
-
-      if (!participantImages[0]) {
-        Alert.alert(
-          "Missing Images",
-          "Please upload at least one participant list page"
-        );
-        return;
-      }
-
-      if (!formData.village) {
-        Alert.alert("Missing Information", "Please enter the village name");
-        return;
-      }
-
-      if (isNaN(Number(formData.participants))) {
-        Alert.alert("Invalid Input", "Participants must be a number");
-        return;
-      }
-
-      if (isNaN(Number(formData.head_count))) {
-        Alert.alert("Invalid Input", "Head count must be a number");
-        return;
-      }
-
-      if (isNaN(Number(formData.no_of_males))) {
-        Alert.alert("Invalid Input", "Number of males must be a number");
-        return;
-      }
-
-      if (isNaN(Number(formData.no_of_females))) {
-        Alert.alert("Invalid Input", "Number of females must be a number");
-        return;
-      }
-
-      Alert.alert("Submitting", "Please wait while we process your report...");
-
       const uploadFile = async (uri: string, filename: string) => {
         const formData = new FormData();
         formData.append("file", {
@@ -362,56 +261,36 @@ const CreateSessionReport = () => {
           `${process.env.EXPO_PUBLIC_BASE_URL}/api/method/upload_file`,
           {
             method: "POST",
-            headers: {
-              Authorization: `Bearer ${accessToken}`,
-            },
+            headers: { Authorization: `Bearer ${accessToken}` },
             body: formData,
           }
         );
-
         const result = await response.json();
-
         if (!response.ok) {
           throw new Error(result.message || "Failed to upload file");
         }
-
-        return typeof result.message === "string"
-          ? result.message
-          : result.message.file_url;
+        return result.message.file_url;
       };
 
       const fileUrls: Record<string, string> = {};
 
-      try {
-        for (let i = 0; i < sessionImages.length; i++) {
-          const image = sessionImages[i];
-          if (image && image.uri) {
-            fileUrls[`session_image_${i + 1}`] = await uploadFile(
-              image.uri,
-              `session_${Date.now()}_${i + 1}.jpg`
-            );
-          }
+      for (let i = 0; i < sessionImages.length; i++) {
+        const image = sessionImages[i];
+        if (image?.uri) {
+          fileUrls[`session_image_${i + 1}`] = await uploadFile(
+            image.uri,
+            `session_${Date.now()}_${i + 1}.jpg`
+          );
         }
-
-        for (let i = 0; i < participantImages.length; i++) {
-          const participantImage = participantImages[i];
-          if (participantImage && participantImage.uri) {
-            fileUrls[`participant_list_image_${i + 1}`] = await uploadFile(
-              participantImage.uri,
-              `participant_${Date.now()}_${i + 1}.jpg`
-            );
-          }
+      }
+      for (let i = 0; i < participantImages.length; i++) {
+        const image = participantImages[i];
+        if (image?.uri) {
+          fileUrls[`participant_list_image_${i + 1}`] = await uploadFile(
+            image.uri,
+            `participant_${Date.now()}_${i + 1}.jpg`
+          );
         }
-      } catch (uploadError) {
-        let errorMessage = "Unknown error";
-        if (
-          uploadError &&
-          typeof uploadError === "object" &&
-          "message" in uploadError
-        ) {
-          errorMessage = (uploadError as { message: string }).message;
-        }
-        throw new Error(`File upload failed: ${errorMessage}`);
       }
 
       const sessionData = {
@@ -448,28 +327,17 @@ const CreateSessionReport = () => {
       );
 
       const result = await response.json();
-
       if (!response.ok) {
-        let errorMsg = "Submission failed";
-        if (result._server_messages) {
-          try {
-            const messages = JSON.parse(result._server_messages);
-            errorMsg = messages
-              .map((m: string) => {
-                try {
-                  return JSON.parse(m).message;
-                } catch {
-                  return m;
-                }
-              })
-              .join("\n");
-          } catch {
-            errorMsg = result._server_messages;
-          }
-        }
+        let errorMsg = result._server_messages
+          ? JSON.parse(result._server_messages)
+              .map((m: any) => JSON.parse(m).message)
+              .join("\n")
+          : "Submission failed";
         throw new Error(errorMsg);
       }
 
+      Alert.alert("Success", "Session report submitted successfully");
+      // Reset form state
       setFormData({
         trainer_name: "",
         date: new Date(),
@@ -490,9 +358,6 @@ const CreateSessionReport = () => {
       });
       setSessionImages([null, null, null, null]);
       setParticipantImages([null, null, null]);
-      setVillageSearch("");
-
-      Alert.alert("Success", "Session report submitted successfully");
     } catch (error: any) {
       console.error("Submission error:", error);
       Alert.alert(
@@ -502,66 +367,15 @@ const CreateSessionReport = () => {
     }
   };
 
-  const renderVillageItem = ({ item }: { item: Village }) => (
-    <TouchableOpacity
-      style={[
-        styles.dropdownItem,
-        {
-          paddingVertical: 12,
-          paddingHorizontal: 16,
-          borderBottomWidth: 1,
-          borderBottomColor: theme.colors.border,
-        },
-      ]}
-      onPress={() => {
-        handleVillageSelect(item);
-        setShowVillageDropdown(false);
-      }}
-    >
-      <View>
-        <Text
-          style={{
-            color: theme.colors.textPrimary,
-            fontWeight: "500",
-            fontSize: 14,
-          }}
-        >
-          {item.village_name || item.name}
-        </Text>
-        {item.village_code && (
-          <Text
-            style={{
-              color: theme.colors.textSecondary,
-              fontSize: 12,
-              marginTop: 2,
-            }}
-          >
-            Code: {item.village_code}
-          </Text>
-        )}
-      </View>
-    </TouchableOpacity>
-  );
-
-  const renderFooter = () => {
-    if (!hasMore) return null;
-    return (
-      <View style={styles.dropdownFooter}>
-        <ActivityIndicator size="small" color={theme.colors.textPrimary} />
-      </View>
-    );
-  };
-
   return (
     <SafeAreaView
       style={[styles.container, { backgroundColor: theme.colors.background }]}
     >
       <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
-
       <ScrollView
-        style={styles.contentContainer}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
       >
         {/* Employee Information Section */}
         <View
@@ -573,137 +387,127 @@ const CreateSessionReport = () => {
           <Text style={[styles.formTitle, { color: theme.colors.textPrimary }]}>
             Employee Information
           </Text>
-
-          <View style={styles.formSection}>
-            <View style={styles.formRow}>
-              <View style={styles.formField}>
-                <Text
-                  style={[
-                    styles.fieldLabel,
-                    { color: theme.colors.textSecondary },
-                  ]}
-                >
-                  Employee Name
-                </Text>
-                <TextInput
-                  style={[
-                    styles.textInput,
-                    {
-                      borderColor: theme.colors.border,
-                      color: theme.colors.textPrimary,
-                      backgroundColor: !disableOnFetch
-                        ? theme.colors.surfacePrimary
-                        : theme.colors.backgroundAlt,
-                    },
-                  ]}
-                  placeholder="Employee name"
-                  placeholderTextColor={theme.colors.textTertiary}
-                  value={formData.employee}
-                  editable={!disableOnFetch}
-                  onChangeText={(text) => handleInputChange("employee", text)}
-                />
-              </View>
-
-              <View style={styles.formField}>
-                <Text
-                  style={[
-                    styles.fieldLabel,
-                    { color: theme.colors.textSecondary },
-                  ]}
-                >
-                  Employee ID
-                </Text>
-                <TextInput
-                  style={[
-                    styles.textInput,
-                    {
-                      borderColor: theme.colors.border,
-                      color: theme.colors.textPrimary,
-                      backgroundColor: !disableOnFetch
-                        ? theme.colors.surfacePrimary
-                        : theme.colors.backgroundAlt,
-                    },
-                  ]}
-                  placeholder="Employee ID"
-                  placeholderTextColor={theme.colors.textTertiary}
-                  value={formData.employee_id}
-                  editable={!disableOnFetch}
-                  onChangeText={(text) =>
-                    handleInputChange("employee_id", text)
-                  }
-                />
-              </View>
+          <View style={styles.formRow}>
+            <View style={styles.formField}>
+              <Text
+                style={[
+                  styles.fieldLabel,
+                  { color: theme.colors.textSecondary },
+                ]}
+              >
+                Employee Name
+              </Text>
+              <TextInput
+                style={[
+                  styles.textInput,
+                  {
+                    borderColor: theme.colors.border,
+                    color: theme.colors.textPrimary,
+                    backgroundColor: !disableOnFetch
+                      ? theme.colors.surfacePrimary
+                      : theme.colors.backgroundAlt,
+                  },
+                ]}
+                placeholder="Employee name"
+                placeholderTextColor={theme.colors.textTertiary}
+                value={formData.employee}
+                editable={!disableOnFetch}
+                onChangeText={(text) => handleInputChange("employee", text)}
+              />
             </View>
-
-            <View style={styles.formRow}>
-              <View style={styles.formField}>
-                <Text
-                  style={[
-                    styles.fieldLabel,
-                    { color: theme.colors.textSecondary },
-                  ]}
-                >
-                  Trainer Name
+            <View style={styles.formField}>
+              <Text
+                style={[
+                  styles.fieldLabel,
+                  { color: theme.colors.textSecondary },
+                ]}
+              >
+                Employee ID
+              </Text>
+              <TextInput
+                style={[
+                  styles.textInput,
+                  {
+                    borderColor: theme.colors.border,
+                    color: theme.colors.textPrimary,
+                    backgroundColor: !disableOnFetch
+                      ? theme.colors.surfacePrimary
+                      : theme.colors.backgroundAlt,
+                  },
+                ]}
+                placeholder="Employee ID"
+                placeholderTextColor={theme.colors.textTertiary}
+                value={formData.employee_id}
+                editable={!disableOnFetch}
+                onChangeText={(text) => handleInputChange("employee_id", text)}
+              />
+            </View>
+          </View>
+          <View style={styles.formRow}>
+            <View style={styles.formField}>
+              <Text
+                style={[
+                  styles.fieldLabel,
+                  { color: theme.colors.textSecondary },
+                ]}
+              >
+                Trainer Name
+              </Text>
+              <TextInput
+                style={[
+                  styles.textInput,
+                  {
+                    borderColor: theme.colors.border,
+                    color: theme.colors.textPrimary,
+                    backgroundColor: !disableOnFetch
+                      ? theme.colors.surfacePrimary
+                      : theme.colors.backgroundAlt,
+                  },
+                ]}
+                placeholder="Trainer name"
+                placeholderTextColor={theme.colors.textTertiary}
+                value={formData.trainer_name}
+                editable={!disableOnFetch}
+                onChangeText={(text) => handleInputChange("trainer_name", text)}
+              />
+            </View>
+            <View style={styles.formField}>
+              <Text
+                style={[
+                  styles.fieldLabel,
+                  { color: theme.colors.textSecondary },
+                ]}
+              >
+                Training Date{" "}
+                <Text style={{ color: theme.statusColors.error }}>*</Text>
+              </Text>
+              <TouchableOpacity
+                style={[
+                  styles.datePickerContainer,
+                  {
+                    borderColor: theme.colors.border,
+                    backgroundColor: theme.colors.surfacePrimary,
+                  },
+                ]}
+                onPress={() => setShowDatePicker(true)}
+              >
+                <Text style={{ color: theme.colors.textPrimary }}>
+                  {formData.date.toLocaleDateString()}
                 </Text>
-                <TextInput
-                  style={[
-                    styles.textInput,
-                    {
-                      borderColor: theme.colors.border,
-                      color: theme.colors.textPrimary,
-                      backgroundColor: !disableOnFetch
-                        ? theme.colors.surfacePrimary
-                        : theme.colors.backgroundAlt,
-                    },
-                  ]}
-                  placeholder="Trainer name"
-                  placeholderTextColor={theme.colors.textTertiary}
-                  value={formData.trainer_name}
-                  editable={!disableOnFetch}
-                  onChangeText={(text) =>
-                    handleInputChange("trainer_name", text)
-                  }
+                <Ionicons
+                  name="calendar"
+                  size={20}
+                  color={theme.brandColors.primary}
                 />
-              </View>
-
-              <View style={styles.formField}>
-                <Text
-                  style={[
-                    styles.fieldLabel,
-                    { color: theme.colors.textSecondary },
-                  ]}
-                >
-                  Training Date{" "}
-                  <Text style={{ color: theme.statusColors.error }}>*</Text>
-                </Text>
-                <TouchableOpacity
-                  style={[
-                    styles.datePickerContainer,
-                    {
-                      borderColor: theme.colors.border,
-                      backgroundColor: theme.colors.surfacePrimary,
-                    },
-                  ]}
-                  onPress={() => setShowDatePicker(true)}
-                >
-                  <Text style={{ color: theme.colors.textPrimary }}>
-                    {formData.date.toLocaleDateString()}
-                  </Text>
-                  <Ionicons
-                    name="calendar"
-                    size={20}
-                    color={theme.brandColors.primary}
-                  />
-                </TouchableOpacity>
-                {showDatePicker && (
-                  <DateTimePicker
-                    value={formData.date}
-                    mode="date"
-                    display="default"
-                    onChange={onDateChange}
-                  />
-                )}
-              </View>
+              </TouchableOpacity>
+              {showDatePicker && (
+                <DateTimePicker
+                  value={formData.date}
+                  mode="date"
+                  display="default"
+                  onChange={onDateChange}
+                />
+              )}
             </View>
           </View>
         </View>
@@ -718,16 +522,20 @@ const CreateSessionReport = () => {
           <Text style={[styles.formTitle, { color: theme.colors.textPrimary }]}>
             Session Information
           </Text>
-
-          <View style={styles.formSection}>
-            <View style={styles.villageInputContainer}>
+          <VillageSearchInput
+            accessToken={accessToken ?? ""}
+            onVillageSelect={handleVillageSelect}
+            initialValue={formData.village_name}
+          />
+          <View style={styles.formRow}>
+            <View style={styles.formField}>
               <Text
                 style={[
                   styles.fieldLabel,
                   { color: theme.colors.textSecondary },
                 ]}
               >
-                Village{" "}
+                No of Participants{" "}
                 <Text style={{ color: theme.statusColors.error }}>*</Text>
               </Text>
               <TextInput
@@ -739,260 +547,119 @@ const CreateSessionReport = () => {
                     backgroundColor: theme.colors.surfacePrimary,
                   },
                 ]}
-                placeholder="Search village by name"
+                placeholder="No. of participants"
                 placeholderTextColor={theme.colors.textTertiary}
-                value={villageSearch}
-                onChangeText={handleVillageSearch}
-                onFocus={() => setShowVillageDropdown(true)}
-                onBlur={() =>
-                  setTimeout(() => setShowVillageDropdown(false), 200)
-                }
+                keyboardType="numeric"
+                value={formData.participants}
+                onChangeText={(text) => handleInputChange("participants", text)}
               />
-
-              {villagesLoading && !villagesRefreshing && (
-                <View style={styles.dropdownLoading}>
-                  <ActivityIndicator
-                    size="small"
-                    color={theme.colors.textPrimary}
-                  />
-                </View>
-              )}
-
-              <Animated.View
-                style={[
-                  styles.villageDropdownContainer,
-                  {
-                    opacity: dropdownAnim,
-                    transform: [
-                      {
-                        translateY: dropdownAnim.interpolate({
-                          inputRange: [0, 1],
-                          outputRange: [-10, 0],
-                        }),
-                      },
-                    ],
-                    backgroundColor: theme.colors.surfacePrimary,
-                    borderColor: theme.colors.border,
-                  },
-                  !showVillageDropdown && { display: "none" },
-                ]}
-              >
-                {villagesError ? (
-                  <View style={styles.dropdownEmpty}>
-                    <Text style={{ color: theme.colors.textSecondary }}>
-                      Error loading villages
-                    </Text>
-                    <TouchableOpacity
-                      onPress={refreshVillages}
-                      style={styles.retryButton}
-                    >
-                      <Text style={{ color: theme.brandColors.primary }}>
-                        Retry
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-                ) : villages.length === 0 ? (
-                  <View style={styles.dropdownEmpty}>
-                    <Text style={{ color: theme.colors.textSecondary }}>
-                      No villages found
-                    </Text>
-                  </View>
-                ) : (
-                  <ScrollView
-                    style={styles.dropdownListContainer}
-                    nestedScrollEnabled={true}
-                    keyboardShouldPersistTaps="handled"
-                    showsVerticalScrollIndicator={true}
-                  >
-                    <FlatList
-                      data={villages}
-                      renderItem={renderVillageItem}
-                      keyExtractor={(item) =>
-                        `${item.name}-${item.village_code || ""}`
-                      }
-                      onEndReached={loadMoreVillages}
-                      onEndReachedThreshold={0.5}
-                      ListFooterComponent={renderFooter}
-                    />
-
-                    {/* Load More Button */}
-                    {hasMore && (
-                      <TouchableOpacity
-                        style={[
-                          styles.loadMoreButton,
-                          { borderTopColor: theme.colors.border },
-                        ]}
-                        onPress={loadMoreVillages}
-                      >
-                        {villagesLoading ? (
-                          <ActivityIndicator
-                            size="small"
-                            color={theme.colors.textPrimary}
-                          />
-                        ) : (
-                          <Text
-                            style={{
-                              color: theme.brandColors.primary,
-                              fontSize: 14,
-                            }}
-                          >
-                            Load More
-                          </Text>
-                        )}
-                      </TouchableOpacity>
-                    )}
-                  </ScrollView>
-                )}
-              </Animated.View>
             </View>
-
-            <View style={styles.formRow}>
-              <View style={styles.formField}>
-                <Text
-                  style={[
-                    styles.fieldLabel,
-                    { color: theme.colors.textSecondary },
-                  ]}
-                >
-                  No of Participants{" "}
-                  <Text style={{ color: theme.statusColors.error }}>*</Text>
-                </Text>
-                <TextInput
-                  style={[
-                    styles.textInput,
-                    {
-                      borderColor: theme.colors.border,
-                      color: theme.colors.textPrimary,
-                      backgroundColor: theme.colors.surfacePrimary,
-                    },
-                  ]}
-                  placeholder="No. of participants"
-                  placeholderTextColor={theme.colors.textTertiary}
-                  keyboardType="numeric"
-                  value={formData.participants}
-                  onChangeText={(text) =>
-                    handleInputChange("participants", text)
-                  }
-                />
-              </View>
-
-              <View style={styles.formField}>
-                <Text
-                  style={[
-                    styles.fieldLabel,
-                    { color: theme.colors.textSecondary },
-                  ]}
-                >
-                  Head Count{" "}
-                  <Text style={{ color: theme.statusColors.error }}>*</Text>
-                </Text>
-                <TextInput
-                  style={[
-                    styles.textInput,
-                    {
-                      borderColor: theme.colors.border,
-                      color: theme.colors.textPrimary,
-                      backgroundColor: theme.colors.surfacePrimary,
-                    },
-                  ]}
-                  placeholder="Enter head count"
-                  placeholderTextColor={theme.colors.textTertiary}
-                  keyboardType="numeric"
-                  value={formData.head_count}
-                  onChangeText={(text) => handleInputChange("head_count", text)}
-                />
-              </View>
-            </View>
-
-            <View style={styles.formSection}>
-              <View style={styles.formRow}>
-                <View style={styles.formField}>
-                  <Text
-                    style={[
-                      styles.fieldLabel,
-                      { color: theme.colors.textSecondary },
-                    ]}
-                  >
-                    No. of Males{" "}
-                    <Text style={{ color: theme.statusColors.error }}>*</Text>
-                  </Text>
-                  <TextInput
-                    style={[
-                      styles.textInput,
-                      {
-                        borderColor: theme.colors.border,
-                        color: theme.colors.textPrimary,
-                        backgroundColor: theme.colors.surfacePrimary,
-                      },
-                    ]}
-                    placeholder="Enter male count"
-                    placeholderTextColor={theme.colors.textTertiary}
-                    keyboardType="numeric"
-                    value={formData.no_of_males}
-                    onChangeText={(text) =>
-                      handleInputChange("no_of_males", text)
-                    }
-                  />
-                </View>
-
-                <View style={styles.formField}>
-                  <Text
-                    style={[
-                      styles.fieldLabel,
-                      { color: theme.colors.textSecondary },
-                    ]}
-                  >
-                    No. of Females{" "}
-                    <Text style={{ color: theme.statusColors.error }}>*</Text>
-                  </Text>
-                  <TextInput
-                    style={[
-                      styles.textInput,
-                      {
-                        borderColor: theme.colors.border,
-                        color: theme.colors.textPrimary,
-                        backgroundColor: theme.colors.surfacePrimary,
-                      },
-                    ]}
-                    placeholder="Enter female count"
-                    placeholderTextColor={theme.colors.textTertiary}
-                    keyboardType="numeric"
-                    value={formData.no_of_females}
-                    onChangeText={(text) =>
-                      handleInputChange("no_of_females", text)
-                    }
-                  />
-                </View>
-              </View>
-            </View>
-
-            <View style={styles.fullWidthField}>
+            <View style={styles.formField}>
               <Text
                 style={[
                   styles.fieldLabel,
                   { color: theme.colors.textSecondary },
                 ]}
               >
-                Feedback
+                Head Count{" "}
+                <Text style={{ color: theme.statusColors.error }}>*</Text>
               </Text>
               <TextInput
                 style={[
-                  styles.textAreaInput,
+                  styles.textInput,
                   {
                     borderColor: theme.colors.border,
                     color: theme.colors.textPrimary,
                     backgroundColor: theme.colors.surfacePrimary,
-                    textAlignVertical: "top",
                   },
                 ]}
-                placeholder="Enter session feedback or observations..."
+                placeholder="Enter head count"
                 placeholderTextColor={theme.colors.textTertiary}
-                multiline={true}
-                numberOfLines={4}
-                value={formData.feedback}
-                onChangeText={(text) => handleInputChange("feedback", text)}
+                keyboardType="numeric"
+                value={formData.head_count}
+                onChangeText={(text) => handleInputChange("head_count", text)}
               />
             </View>
+          </View>
+          <View style={styles.formRow}>
+            <View style={styles.formField}>
+              <Text
+                style={[
+                  styles.fieldLabel,
+                  { color: theme.colors.textSecondary },
+                ]}
+              >
+                No. of Males{" "}
+                <Text style={{ color: theme.statusColors.error }}>*</Text>
+              </Text>
+              <TextInput
+                style={[
+                  styles.textInput,
+                  {
+                    borderColor: theme.colors.border,
+                    color: theme.colors.textPrimary,
+                    backgroundColor: theme.colors.surfacePrimary,
+                  },
+                ]}
+                placeholder="Enter male count"
+                placeholderTextColor={theme.colors.textTertiary}
+                keyboardType="numeric"
+                value={formData.no_of_males}
+                onChangeText={(text) => handleInputChange("no_of_males", text)}
+              />
+            </View>
+            <View style={styles.formField}>
+              <Text
+                style={[
+                  styles.fieldLabel,
+                  { color: theme.colors.textSecondary },
+                ]}
+              >
+                No. of Females{" "}
+                <Text style={{ color: theme.statusColors.error }}>*</Text>
+              </Text>
+              <TextInput
+                style={[
+                  styles.textInput,
+                  {
+                    borderColor: theme.colors.border,
+                    color: theme.colors.textPrimary,
+                    backgroundColor: theme.colors.surfacePrimary,
+                  },
+                ]}
+                placeholder="Enter female count"
+                placeholderTextColor={theme.colors.textTertiary}
+                keyboardType="numeric"
+                value={formData.no_of_females}
+                onChangeText={(text) =>
+                  handleInputChange("no_of_females", text)
+                }
+              />
+            </View>
+          </View>
+          <View style={styles.fullWidthField}>
+            <Text
+              style={[styles.fieldLabel, { color: theme.colors.textSecondary }]}
+            >
+              Feedback
+            </Text>
+            <TextInput
+              style={[
+                styles.textAreaInput,
+                {
+                  borderColor: theme.colors.border,
+                  color: theme.colors.textPrimary,
+                  backgroundColor: theme.colors.surfacePrimary,
+                  textAlignVertical: "top",
+                },
+              ]}
+              placeholder="Enter session feedback or observations..."
+              placeholderTextColor={theme.colors.textTertiary}
+              multiline={true}
+              numberOfLines={4}
+              value={formData.feedback}
+              onChangeText={(text) => handleInputChange("feedback", text)}
+            />
           </View>
         </View>
 
@@ -1012,7 +679,6 @@ const CreateSessionReport = () => {
           >
             Upload 4 images of the session (first 2 required)
           </Text>
-
           <View style={styles.imagesGridContainer}>
             {sessionImages.map((image, index) => (
               <TouchableOpacity
@@ -1076,7 +742,6 @@ const CreateSessionReport = () => {
           >
             Upload participant list pages (first page required)
           </Text>
-
           <View style={styles.participantImagesContainer}>
             {participantImages.map((image, index) => (
               <TouchableOpacity
@@ -1134,136 +799,129 @@ const CreateSessionReport = () => {
           <Text style={[styles.formTitle, { color: theme.colors.textPrimary }]}>
             Geographical Information
           </Text>
-
-          <View style={styles.formSection}>
-            <View style={styles.formRow}>
-              <View style={styles.formField}>
+          <View style={styles.formRow}>
+            <View style={styles.formField}>
+              <Text
+                style={[
+                  styles.fieldLabel,
+                  { color: theme.colors.textSecondary },
+                ]}
+              >
+                CFL Center
+              </Text>
+              <View
+                style={[
+                  styles.fieldValueContainer,
+                  {
+                    backgroundColor: theme.colors.background,
+                    borderColor: theme.colors.border,
+                  },
+                ]}
+              >
                 <Text
                   style={[
-                    styles.fieldLabel,
+                    styles.fieldValue,
                     { color: theme.colors.textSecondary },
                   ]}
                 >
-                  CFL Center
+                  {formData.cfl_center || "N/A"}
                 </Text>
-                <View
-                  style={[
-                    styles.fieldValueContainer,
-                    {
-                      backgroundColor: theme.colors.background,
-                      borderColor: theme.colors.border,
-                    },
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.fieldValue,
-                      { color: theme.colors.textSecondary },
-                    ]}
-                  >
-                    {formData.cfl_center}
-                  </Text>
-                </View>
-              </View>
-
-              <View style={styles.formField}>
-                <Text
-                  style={[
-                    styles.fieldLabel,
-                    { color: theme.colors.textSecondary },
-                  ]}
-                >
-                  District
-                </Text>
-                <View
-                  style={[
-                    styles.fieldValueContainer,
-                    {
-                      backgroundColor: theme.colors.background,
-                      borderColor: theme.colors.border,
-                    },
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.fieldValue,
-                      { color: theme.colors.textSecondary },
-                    ]}
-                  >
-                    {formData.district}
-                  </Text>
-                </View>
               </View>
             </View>
-
-            <View style={styles.formRow}>
-              <View style={styles.formField}>
+            <View style={styles.formField}>
+              <Text
+                style={[
+                  styles.fieldLabel,
+                  { color: theme.colors.textSecondary },
+                ]}
+              >
+                District
+              </Text>
+              <View
+                style={[
+                  styles.fieldValueContainer,
+                  {
+                    backgroundColor: theme.colors.background,
+                    borderColor: theme.colors.border,
+                  },
+                ]}
+              >
                 <Text
                   style={[
-                    styles.fieldLabel,
+                    styles.fieldValue,
                     { color: theme.colors.textSecondary },
                   ]}
                 >
-                  Region
+                  {formData.district || "N/A"}
                 </Text>
-                <View
-                  style={[
-                    styles.fieldValueContainer,
-                    {
-                      backgroundColor: theme.colors.background,
-                      borderColor: theme.colors.border,
-                    },
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.fieldValue,
-                      { color: theme.colors.textSecondary },
-                    ]}
-                  >
-                    {formData.region}
-                  </Text>
-                </View>
               </View>
-
-              <View style={styles.formField}>
+            </View>
+          </View>
+          <View style={styles.formRow}>
+            <View style={styles.formField}>
+              <Text
+                style={[
+                  styles.fieldLabel,
+                  { color: theme.colors.textSecondary },
+                ]}
+              >
+                Region
+              </Text>
+              <View
+                style={[
+                  styles.fieldValueContainer,
+                  {
+                    backgroundColor: theme.colors.background,
+                    borderColor: theme.colors.border,
+                  },
+                ]}
+              >
                 <Text
                   style={[
-                    styles.fieldLabel,
+                    styles.fieldValue,
                     { color: theme.colors.textSecondary },
                   ]}
                 >
-                  State
+                  {formData.region || "N/A"}
                 </Text>
-                <View
+              </View>
+            </View>
+            <View style={styles.formField}>
+              <Text
+                style={[
+                  styles.fieldLabel,
+                  { color: theme.colors.textSecondary },
+                ]}
+              >
+                State
+              </Text>
+              <View
+                style={[
+                  styles.fieldValueContainer,
+                  {
+                    backgroundColor: theme.colors.background,
+                    borderColor: theme.colors.border,
+                  },
+                ]}
+              >
+                <Text
                   style={[
-                    styles.fieldValueContainer,
-                    {
-                      backgroundColor: theme.colors.background,
-                      borderColor: theme.colors.border,
-                    },
+                    styles.fieldValue,
+                    { color: theme.colors.textSecondary },
                   ]}
                 >
-                  <Text
-                    style={[
-                      styles.fieldValue,
-                      { color: theme.colors.textSecondary },
-                    ]}
-                  >
-                    {formData.state}
-                  </Text>
-                </View>
+                  {formData.state || "N/A"}
+                </Text>
               </View>
             </View>
           </View>
         </View>
 
+        {/* Submit Button */}
         <TouchableOpacity
           style={[
             styles.submitButton,
-            {
-              backgroundColor: theme.brandColors.primary,
-            },
+            { backgroundColor: theme.brandColors.primary },
           ]}
           onPress={submitReport}
         >
@@ -1282,43 +940,19 @@ const CreateSessionReport = () => {
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  contentContainer: {
-    flex: 1,
-  },
-  scrollContent: {
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 24,
-  },
-  formCard: {
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 20,
-  },
-  formTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    marginBottom: 16,
-  },
-  formSection: {
-    marginBottom: 20,
-  },
+  container: { flex: 1 },
+  contentContainer: { flex: 1 },
+  scrollContent: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 24 },
+  formCard: { borderRadius: 12, padding: 16, marginBottom: 20 },
+  formTitle: { fontSize: 18, fontWeight: "600", marginBottom: 16 },
   formRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     marginBottom: 12,
+    width: "100%",
   },
-  formField: {
-    width: "48%",
-  },
-  fieldLabel: {
-    fontSize: 14,
-    marginBottom: 6,
-    fontWeight: "500",
-  },
+  formField: { width: "48%" },
+  fieldLabel: { fontSize: 14, marginBottom: 6, fontWeight: "500" },
   textInput: {
     borderWidth: 1,
     borderRadius: 6,
@@ -1335,10 +969,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
   },
-  fullWidthField: {
-    width: "100%",
-    marginBottom: 12,
-  },
+  fullWidthField: { width: "100%", marginBottom: 12 },
   textAreaInput: {
     borderWidth: 1,
     borderRadius: 6,
@@ -1352,22 +983,13 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     paddingHorizontal: 12,
     paddingVertical: 12,
+    minHeight: 44,
+    justifyContent: "center",
   },
-  fieldValue: {
-    fontSize: 14,
-  },
-  sectionContainer: {
-    marginBottom: 20,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    marginBottom: 6,
-  },
-  sectionDescription: {
-    fontSize: 14,
-    marginBottom: 16,
-  },
+  fieldValue: { fontSize: 14 },
+  sectionContainer: { marginBottom: 20 },
+  sectionTitle: { fontSize: 18, fontWeight: "600", marginBottom: 6 },
+  sectionDescription: { fontSize: 14, marginBottom: 16 },
   imagesGridContainer: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -1386,16 +1008,8 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  imageUploadText: {
-    marginTop: 10,
-    fontSize: 14,
-    fontWeight: "500",
-  },
-  uploadedImage: {
-    width: "100%",
-    height: "100%",
-    resizeMode: "cover",
-  },
+  imageUploadText: { marginTop: 10, fontSize: 14, fontWeight: "500" },
+  uploadedImage: { width: "100%", height: "100%", resizeMode: "cover" },
   participantImagesContainer: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -1414,63 +1028,7 @@ const styles = StyleSheet.create({
     marginTop: 10,
     marginBottom: 20,
   },
-  submitButtonText: {
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  villageInputContainer: {
-    position: "relative",
-    marginBottom: 20,
-  },
-  villageDropdownContainer: {
-    position: "absolute",
-    top: "100%",
-    left: 0,
-    right: 0,
-    maxHeight: 200,
-    borderWidth: 1,
-    borderRadius: 6,
-    marginTop: 4,
-    zIndex: 1000,
-    elevation: 5,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-  },
-  dropdownListContainer: {
-    height: 198,
-  },
-  dropdownItem: {
-    backgroundColor: "transparent",
-  },
-  dropdownLoading: {
-    position: "absolute",
-    right: 10,
-    top: 40,
-  },
-  dropdownEmpty: {
-    padding: 15,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  dropdownFooter: {
-    padding: 10,
-    alignItems: "center",
-  },
-  retryButton: {
-    marginTop: 10,
-    padding: 8,
-    borderRadius: 4,
-    borderWidth: 1,
-  },
-  loadMoreButton: {
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    alignItems: "center",
-    borderTopWidth: 1,
-    marginTop: 5,
-  },
+  submitButtonText: { fontSize: 16, fontWeight: "600" },
 });
 
 export default CreateSessionReport;
