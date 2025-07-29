@@ -2,7 +2,7 @@ import { useTheme } from "@/contexts/ThemeContext";
 import { Ionicons } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { useNavigation } from "expo-router";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react"; // 1. Import useRef
 import {
   Alert,
   Image,
@@ -61,6 +61,14 @@ const CreateSessionReport = () => {
     state: "",
   });
 
+  // 2. Create a ref to hold temporary form data
+  const tempFormData = useRef(formData);
+
+  // Sync ref when formData is updated by something other than user input
+  useEffect(() => {
+    tempFormData.current = formData;
+  }, [formData]);
+
   useEffect(() => {
     if (employeeProfile) {
       setFormData((prevData) => ({
@@ -110,7 +118,7 @@ const CreateSessionReport = () => {
   }, [navigation, sessionImages, participantImages]);
 
   const handleInputChange = (field: string, value: string | Date) => {
-    setFormData({ ...formData, [field]: value });
+    setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
   const onDateChange = (event: any, selectedDate?: Date) => {
@@ -391,6 +399,7 @@ const CreateSessionReport = () => {
               >
                 Employee Name
               </Text>
+              {/* --- MODIFIED INPUT --- */}
               <TextInput
                 style={[
                   styles.textInput,
@@ -404,9 +413,14 @@ const CreateSessionReport = () => {
                 ]}
                 placeholder="Employee name"
                 placeholderTextColor={theme.colors.textTertiary}
-                value={formData.employee}
+                defaultValue={formData.employee}
                 editable={!disableOnFetch}
-                onChangeText={(text) => handleInputChange("employee", text)}
+                onChangeText={(text) => {
+                  tempFormData.current.employee = text;
+                }}
+                onEndEditing={() =>
+                  handleInputChange("employee", tempFormData.current.employee)
+                }
               />
             </View>
             <View style={styles.formField}>
@@ -418,6 +432,7 @@ const CreateSessionReport = () => {
               >
                 Employee ID
               </Text>
+              {/* --- MODIFIED INPUT --- */}
               <TextInput
                 style={[
                   styles.textInput,
@@ -431,9 +446,17 @@ const CreateSessionReport = () => {
                 ]}
                 placeholder="Employee ID"
                 placeholderTextColor={theme.colors.textTertiary}
-                value={formData.employee_id}
+                defaultValue={formData.employee_id}
                 editable={!disableOnFetch}
-                onChangeText={(text) => handleInputChange("employee_id", text)}
+                onChangeText={(text) => {
+                  tempFormData.current.employee_id = text;
+                }}
+                onEndEditing={() =>
+                  handleInputChange(
+                    "employee_id",
+                    tempFormData.current.employee_id
+                  )
+                }
               />
             </View>
           </View>
@@ -447,6 +470,7 @@ const CreateSessionReport = () => {
               >
                 Trainer Name
               </Text>
+              {/* --- MODIFIED INPUT --- */}
               <TextInput
                 style={[
                   styles.textInput,
@@ -460,9 +484,17 @@ const CreateSessionReport = () => {
                 ]}
                 placeholder="Trainer name"
                 placeholderTextColor={theme.colors.textTertiary}
-                value={formData.trainer_name}
+                defaultValue={formData.trainer_name}
                 editable={!disableOnFetch}
-                onChangeText={(text) => handleInputChange("trainer_name", text)}
+                onChangeText={(text) => {
+                  tempFormData.current.trainer_name = text;
+                }}
+                onEndEditing={() =>
+                  handleInputChange(
+                    "trainer_name",
+                    tempFormData.current.trainer_name
+                  )
+                }
               />
             </View>
             <View style={styles.formField}>
@@ -538,6 +570,7 @@ const CreateSessionReport = () => {
                 No of Participants{" "}
                 <Text style={{ color: theme.statusColors.error }}>*</Text>
               </Text>
+              {/* --- MODIFIED INPUT --- */}
               <TextInput
                 style={[
                   styles.textInput,
@@ -550,8 +583,16 @@ const CreateSessionReport = () => {
                 placeholder="No. of participants"
                 placeholderTextColor={theme.colors.textTertiary}
                 keyboardType="numeric"
-                value={formData.participants}
-                onChangeText={(text) => handleInputChange("participants", text)}
+                defaultValue={formData.participants}
+                onChangeText={(text) => {
+                  tempFormData.current.participants = text;
+                }}
+                onEndEditing={() =>
+                  handleInputChange(
+                    "participants",
+                    tempFormData.current.participants
+                  )
+                }
               />
             </View>
             <View style={styles.formField}>
@@ -564,6 +605,7 @@ const CreateSessionReport = () => {
                 Head Count{" "}
                 <Text style={{ color: theme.statusColors.error }}>*</Text>
               </Text>
+              {/* --- MODIFIED INPUT --- */}
               <TextInput
                 style={[
                   styles.textInput,
@@ -576,8 +618,16 @@ const CreateSessionReport = () => {
                 placeholder="Enter head count"
                 placeholderTextColor={theme.colors.textTertiary}
                 keyboardType="numeric"
-                value={formData.head_count}
-                onChangeText={(text) => handleInputChange("head_count", text)}
+                defaultValue={formData.head_count}
+                onChangeText={(text) => {
+                  tempFormData.current.head_count = text;
+                }}
+                onEndEditing={() =>
+                  handleInputChange(
+                    "head_count",
+                    tempFormData.current.head_count
+                  )
+                }
               />
             </View>
           </View>
@@ -592,6 +642,7 @@ const CreateSessionReport = () => {
                 No. of Males{" "}
                 <Text style={{ color: theme.statusColors.error }}>*</Text>
               </Text>
+              {/* --- MODIFIED INPUT --- */}
               <TextInput
                 style={[
                   styles.textInput,
@@ -604,8 +655,16 @@ const CreateSessionReport = () => {
                 placeholder="Enter male count"
                 placeholderTextColor={theme.colors.textTertiary}
                 keyboardType="numeric"
-                value={formData.no_of_males}
-                onChangeText={(text) => handleInputChange("no_of_males", text)}
+                defaultValue={formData.no_of_males}
+                onChangeText={(text) => {
+                  tempFormData.current.no_of_males = text;
+                }}
+                onEndEditing={() =>
+                  handleInputChange(
+                    "no_of_males",
+                    tempFormData.current.no_of_males
+                  )
+                }
               />
             </View>
             <View style={styles.formField}>
@@ -618,6 +677,7 @@ const CreateSessionReport = () => {
                 No. of Females{" "}
                 <Text style={{ color: theme.statusColors.error }}>*</Text>
               </Text>
+              {/* --- MODIFIED INPUT --- */}
               <TextInput
                 style={[
                   styles.textInput,
@@ -630,9 +690,15 @@ const CreateSessionReport = () => {
                 placeholder="Enter female count"
                 placeholderTextColor={theme.colors.textTertiary}
                 keyboardType="numeric"
-                value={formData.no_of_females}
-                onChangeText={(text) =>
-                  handleInputChange("no_of_females", text)
+                defaultValue={formData.no_of_females}
+                onChangeText={(text) => {
+                  tempFormData.current.no_of_females = text;
+                }}
+                onEndEditing={() =>
+                  handleInputChange(
+                    "no_of_females",
+                    tempFormData.current.no_of_females
+                  )
                 }
               />
             </View>
@@ -643,6 +709,7 @@ const CreateSessionReport = () => {
             >
               Feedback
             </Text>
+            {/* --- MODIFIED INPUT --- */}
             <TextInput
               style={[
                 styles.textAreaInput,
@@ -657,8 +724,13 @@ const CreateSessionReport = () => {
               placeholderTextColor={theme.colors.textTertiary}
               multiline={true}
               numberOfLines={4}
-              value={formData.feedback}
-              onChangeText={(text) => handleInputChange("feedback", text)}
+              defaultValue={formData.feedback}
+              onChangeText={(text) => {
+                tempFormData.current.feedback = text;
+              }}
+              onEndEditing={() =>
+                handleInputChange("feedback", tempFormData.current.feedback)
+              }
             />
           </View>
         </View>
